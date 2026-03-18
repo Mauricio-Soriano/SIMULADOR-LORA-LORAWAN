@@ -1,12 +1,17 @@
 
 package mx.mauricio.lorawan.device;
 
+import mx.mauricio.lorawan.frame.ApplicationPayload;
+import mx.mauricio.lorawan.frame.UplinkFrame;
 import mx.mauricio.lorawan.gateway.Gateway;
 
 public class Device {
 
     private final String deviceId;
     private final Gateway gateway;
+
+    // Agregar atributo
+    private int frameCounter = 0;
 
     // Parámetros LoRaWAN
     private final int spreadingFactor;  // SF7-SF12
@@ -29,6 +34,17 @@ public class Device {
         this.codingRate = codingRate;
         this.payloadSizeBytes = payloadSizeBytes;
     }
+
+        // Nuevo método sendUplink
+    public void sendUplink(ApplicationPayload appPayload) {
+        frameCounter++;
+        UplinkFrame frame = new UplinkFrame(this, appPayload);
+        System.out.println("[Device " + deviceId + "] " + frame.toHexString());
+        gateway.receiveFromDevice(this, frame.toHexString());
+    }
+
+    // Getter
+    public int getFrameCounter() { return frameCounter; }
 
     // Getters
     public String getDeviceId() { return deviceId; }

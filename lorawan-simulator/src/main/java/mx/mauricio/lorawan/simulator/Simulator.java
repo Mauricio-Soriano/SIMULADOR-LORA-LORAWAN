@@ -1,6 +1,7 @@
 package mx.mauricio.lorawan.simulator;
 
 import mx.mauricio.lorawan.device.Device;
+import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.gateway.Gateway;
 import mx.mauricio.lorawan.network.NetworkServer;
 
@@ -21,7 +22,9 @@ public class Simulator {
         // Device rápido (SF7, BW 500kHz)
         Device device3 = new Device("dev-3", gateway, 7, 500, "4/5", 10);
 
-        device1.sendUplink("Temp: 25C");
+        //device1.sendUplink("Temp: 25C");
+        //nuevo método con las clases del frame
+        device1.sendUplink(new ApplicationPayload("Temp: 25C", 1));
         device2.sendUplink("Sensor data...");
         device3.sendUplink("Quick ping");
     }
