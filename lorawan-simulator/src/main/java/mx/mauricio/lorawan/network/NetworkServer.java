@@ -43,10 +43,31 @@ public class NetworkServer {
     }
 
     public void receiveFromGateway(String gatewayId, String payload) {
-        System.out.println("[NetworkServer] Uplink via gateway "
+        System.out.println("[NetworkServer] Uplink recibido vía gateway "
                 + gatewayId
                 + ": "
                 + payload);
+
+        Map<String, String> fields = parsePayload(payload);
+
+        System.out.println("[NetworkServer] Campos parseados:");
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            System.out.println("  " + entry.getKey() + " = " + entry.getValue());
+        }
+    }
+
+    private Map<String, String> parsePayload(String payload) {
+        Map<String, String> fields = new HashMap<>();
+
+        String[] parts = payload.split("\\|");
+        for (String part : parts) {
+            String[] keyValue = part.split("=", 2);
+            if (keyValue.length == 2) {
+                fields.put(keyValue[0], keyValue[1]);
+            }
+        }
+
+        return fields;
     }
 }
 
