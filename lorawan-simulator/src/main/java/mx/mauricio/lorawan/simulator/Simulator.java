@@ -2,12 +2,15 @@ package mx.mauricio.lorawan.simulator;
 //import java.io.IOException;
 //import java.nio.file.Paths;
 
+import mx.mauricio.lorawan.communication.UdpGatewayServer;
 import mx.mauricio.lorawan.config.LoRaConfig;
 import mx.mauricio.lorawan.device.Device;
 import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.gateway.Gateway;
 import mx.mauricio.lorawan.network.NetworkServer;
 import mx.mauricio.lorawan.source.FuenteInformacion;
+//import mx.mauricio.lorawan.communication.UdpGatewayServer;
+
 
 public class Simulator {
 
@@ -17,6 +20,18 @@ public static void main(String[] args) {
     // Configuración
     NetworkServer ns = new NetworkServer();
     Gateway gw = new Gateway("gw-1", ns, 100.0, 50.0,20);
+
+    UdpGatewayServer udpServer = new UdpGatewayServer(5000, gw);
+    Thread serverThread = new Thread(udpServer);
+    serverThread.setDaemon(true);
+    serverThread.start();
+    try {
+        Thread.sleep(300);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    }
+
+
 
     // Dispositivos con diferentes configuraciones LoRaWAN
     Device dev1 = new Device("dev-1", gw, LoRaConfig.US915_CLASS_A);
@@ -32,6 +47,11 @@ public static void main(String[] args) {
         for (String linea : fuente.getLineas()) {
             dev1.sendUplink(new ApplicationPayload(linea, 1));
         }
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     } catch (Exception e) {
         System.err.println("Error fuente: " + e.getMessage());
     }
@@ -46,7 +66,14 @@ public static void main(String[] args) {
     System.out.printf("dev3: %s (%.1fMHz SF%d %s)%n", 
         dev3.getConfig().name(), dev3.getConfig().getFrequencyMHz(),
         dev3.getConfig().getSpreadingFactor(), dev3.getConfig().getCodingRate());
-}
+
+    try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+    }
 
 }
 

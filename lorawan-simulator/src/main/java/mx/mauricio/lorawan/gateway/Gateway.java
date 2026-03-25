@@ -3,6 +3,8 @@ package mx.mauricio.lorawan.gateway;
 import mx.mauricio.lorawan.device.Device;
 import mx.mauricio.lorawan.network.NetworkServer;
 
+
+
 public class Gateway {
 
     private final String gatewayId;
@@ -24,6 +26,12 @@ public class Gateway {
         this.y = y;
         this.maxTxPowerDBm = maxTxPowerDBm;
     }
+
+    public void receiveUdpMessage(String payload) {
+        System.out.printf("[Gateway %s @%.1f,%.1f] Rx UDP payload%n", gatewayId, x, y);
+        networkServer.receiveFromGateway(gatewayId, payload);
+    }
+
 
     public String getGatewayId() { return gatewayId; }
     public double getX() { return x; }

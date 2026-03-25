@@ -8,12 +8,16 @@ public class NetworkServer {
     public void handleUplink(Device device, Gateway gateway, String payload) {
         System.out.println("[NetworkServer] Uplink from device "
                 + device.getDeviceId()
-                + " via gateway " + gateway.getGatewayId()
-                + ": " + payload);
+                + " via gateway "
+                + gateway.getGatewayId()
+                + ": "
+                + payload);
+    }
 
-        // Aquí luego podremos:
-        // - aplicar lógica LoRaWAN
-        // - generar downlinks
-        // - registrar estadísticas
+    public void receiveFromGateway(String gatewayId, String payload) {
+        System.out.println("[NetworkServer] Uplink via gateway "
+                + gatewayId
+                + ": "
+                + payload);
     }
 }
