@@ -20,5 +20,12 @@ public class ApplicationPayload {
     public String toString() {
         return String.format("AppPayload[fPort=%d,data='%s']", fPort, data);
     }
+
+    //GETTERS
+    public int getPort() {
+        return fPort;
+    }
+
+
 }
 

@@ -1,5 +1,6 @@
 package mx.mauricio.lorawan.device;
 
+//import mx.mauricio.lorawan.LoRaWAN.PaqueteUplink;
 import mx.mauricio.lorawan.config.LoRaConfig;
 import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.frame.UplinkFrame;
@@ -26,9 +27,13 @@ public class Device {
     public void sendUplink(ApplicationPayload appPayload) {
         frameCounter++;
         UplinkFrame frame = new UplinkFrame(this, appPayload);
-        System.out.printf("[Device %s %s SF%d] %s%n", 
-            deviceId, config.getDeviceClass(), 
-            config.getSpreadingFactor(), frame.toHexString());
+
+        System.out.printf("[Device %s %s SF%d] %s%n",
+                deviceId,
+                config.getDeviceClass(),
+                config.getSpreadingFactor(),
+                frame);
+
         gateway.receiveFromDevice(this, frame.toHexString());
     }
 
