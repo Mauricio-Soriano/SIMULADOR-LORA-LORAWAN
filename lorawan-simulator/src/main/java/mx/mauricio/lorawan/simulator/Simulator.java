@@ -71,7 +71,14 @@ public static void main(String[] args) {
         dev2.sendUplink(new ApplicationPayload("msg-dev2", 2));
         dev3.sendUplink(new ApplicationPayload("msg-dev3", 3));
 
+    try {
+        Thread.sleep(700);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    }
+
     System.out.println("\n=== Configuraciones LoRaWAN ===");
+
     try {
             Thread.sleep(500);
         } catch (InterruptedException e) {

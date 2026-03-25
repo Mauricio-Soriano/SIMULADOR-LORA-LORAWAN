@@ -72,7 +72,8 @@ public class NetworkServer {
             String decodedData = fields.get("DATA");
             System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
             System.out.println("[NetworkServer] Fuente decodificada: "
-                    + describeDecodedSource(decodedData));
+                + describeDecodedSource(fields.get("FPORT"), decodedData));
+
 
         } else {
             System.out.println("[NetworkServer] Verificación de integridad: ERROR");
@@ -124,12 +125,27 @@ public class NetworkServer {
         }
     }
 
-    private String describeDecodedSource(String data) {
-        if (isNumeric(data)) {
-            return "medición numérica = " + data;
+    private String describeDecodedSource(String fport, String data) {
+    String sourceType;
+
+        switch (fport) {
+            case "1":
+                sourceType = "medición de sensor";
+                break;
+            case "2":
+                sourceType = "mensaje de estado";
+                break;
+            case "3":
+                sourceType = "mensaje de control/prueba";
+                break;
+            default:
+                sourceType = isNumeric(data) ? "medición numérica" : "mensaje de aplicación";
+                break;
         }
-        return "mensaje textual = " + data;
+
+        return sourceType + " (FPORT " + fport + ") = " + data;
     }
+
 }
 
 
