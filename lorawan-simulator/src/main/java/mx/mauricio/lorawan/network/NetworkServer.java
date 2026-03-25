@@ -54,6 +54,12 @@ public class NetworkServer {
         for (Map.Entry<String, String> entry : fields.entrySet()) {
             System.out.println("  " + entry.getKey() + " = " + entry.getValue());
         }
+
+        if (isValidPayload(fields)) {
+            System.out.println("[NetworkServer] Verificación de integridad: OK");
+        } else {
+            System.out.println("[NetworkServer] Verificación de integridad: ERROR");
+        }
     }
 
     private Map<String, String> parsePayload(String payload) {
@@ -69,7 +75,26 @@ public class NetworkServer {
 
         return fields;
     }
+
+    private boolean isValidPayload(Map<String, String> fields) {
+        if (!fields.containsKey("MHDR")) return false;
+        if (!fields.containsKey("DEV")) return false;
+        if (!fields.containsKey("FCNT")) return false;
+        if (!fields.containsKey("FPORT")) return false;
+        if (!fields.containsKey("DATA")) return false;
+        if (!fields.containsKey("MIC")) return false;
+
+        if (fields.get("MHDR") == null || !fields.get("MHDR").equals("40")) return false;
+        if (fields.get("DEV") == null || fields.get("DEV").isEmpty()) return false;
+        if (fields.get("FCNT") == null || fields.get("FCNT").isEmpty()) return false;
+        if (fields.get("FPORT") == null || fields.get("FPORT").isEmpty()) return false;
+        if (fields.get("DATA") == null) return false;
+        if (fields.get("MIC") == null || fields.get("MIC").isEmpty()) return false;
+
+        return true;
+    }
 }
+
 
 
 /* Version NS antes de la identificación de clase */
