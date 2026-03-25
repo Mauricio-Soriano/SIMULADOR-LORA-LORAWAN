@@ -45,6 +45,10 @@ public static void main(String[] args) {
     Device dev1 = new Device("dev-1", gw, LoRaConfig.US915_CLASS_A);
     Device dev2 = new Device("dev-2", gw, LoRaConfig.EU868_CLASS_B);  
     Device dev3 = new Device("dev-3", gw, LoRaConfig.US915_CLASS_C);
+    // Registro de dispositivos en el servidor
+    ns.registerDevice(dev1);
+    ns.registerDevice(dev2);
+    ns.registerDevice(dev3);
 
     // Fuente de datos
     try {
