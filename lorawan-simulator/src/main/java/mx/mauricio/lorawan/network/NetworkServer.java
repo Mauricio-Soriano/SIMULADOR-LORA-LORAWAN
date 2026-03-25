@@ -57,6 +57,18 @@ public class NetworkServer {
 
         if (isValidPayload(fields)) {
             System.out.println("[NetworkServer] Verificación de integridad: OK");
+
+            String deviceId = fields.get("DEV");
+            Device device = getRegisteredDevice(deviceId);
+
+            if (device != null) {
+                System.out.println("[NetworkServer] Dispositivo identificado: " + deviceId);
+                System.out.println("[NetworkServer] Clase del dispositivo: "
+                        + device.getConfig().getDeviceClass());
+            } else {
+                System.out.println("[NetworkServer] Dispositivo no registrado: " + deviceId);
+            }
+
         } else {
             System.out.println("[NetworkServer] Verificación de integridad: ERROR");
         }
@@ -94,6 +106,7 @@ public class NetworkServer {
         return true;
     }
 }
+
 
 
 
