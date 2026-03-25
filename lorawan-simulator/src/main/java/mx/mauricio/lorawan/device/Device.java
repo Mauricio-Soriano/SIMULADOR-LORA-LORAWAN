@@ -1,7 +1,9 @@
 package mx.mauricio.lorawan.device;
 
+import mx.mauricio.lorawan.communication.TcpSender;
 //import mx.mauricio.lorawan.LoRaWAN.PaqueteUplink;
 import mx.mauricio.lorawan.communication.UdpSender;
+import mx.mauricio.lorawan.config.DeviceClass;
 import mx.mauricio.lorawan.config.LoRaConfig;
 import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.frame.UplinkFrame;
@@ -29,8 +31,34 @@ public class Device {
     public Device(String deviceId, Gateway gateway) {
         this(deviceId, gateway, LoRaConfig.US915_CLASS_A);
     }
-/************ SendUPlink Con Sockets actualizado*************/
 
+/************ SendUPlink Con Sockets UDP y TCP dependiendo la clase **********/
+public void sendUplink(ApplicationPayload appPayload) {
+    frameCounter++;
+    UplinkFrame frame = new UplinkFrame(this, appPayload);
+
+    System.out.printf("[Device %s %s SF%d] %s%n",
+            deviceId,
+            config.getDeviceClass(),
+            config.getSpreadingFactor(),
+            frame);
+
+    String payload = frame.toHexString();
+
+    if (config.getDeviceClass() == DeviceClass.CLASS_A) {
+        UdpSender udpSender = new UdpSender("127.0.0.1", 5000);
+        udpSender.send(payload);
+    } else {
+        TcpSender tcpSender = new TcpSender("127.0.0.1", 6000);
+        tcpSender.send(payload);
+    }
+}
+
+
+
+
+/************ SendUPlink Con Sockets actualizado*************/
+/*
 public void sendUplink(ApplicationPayload appPayload) {
     frameCounter++;
     UplinkFrame frame = new UplinkFrame(this, appPayload);
@@ -44,7 +72,7 @@ public void sendUplink(ApplicationPayload appPayload) {
     UdpSender sender = new UdpSender("127.0.0.1", 5000);
     sender.send(frame.toHexString());
 }
-
+ */
 
 /************ SendUPlink Con Sockets*************/
 /* 

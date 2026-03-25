@@ -10,6 +10,8 @@ import mx.mauricio.lorawan.gateway.Gateway;
 import mx.mauricio.lorawan.network.NetworkServer;
 import mx.mauricio.lorawan.source.FuenteInformacion;
 //import mx.mauricio.lorawan.communication.UdpGatewayServer;
+import mx.mauricio.lorawan.communication.TcpGatewayServer;
+
 
 
 public class Simulator {
@@ -20,11 +22,17 @@ public static void main(String[] args) {
     // Configuración
     NetworkServer ns = new NetworkServer();
     Gateway gw = new Gateway("gw-1", ns, 100.0, 50.0,20);
-
+    //Para UDP
     UdpGatewayServer udpServer = new UdpGatewayServer(5000, gw);
     Thread serverThread = new Thread(udpServer);
     serverThread.setDaemon(true);
     serverThread.start();
+    //Para TCP
+    TcpGatewayServer tcpServer = new TcpGatewayServer(6000, gw);
+    Thread tcpThread = new Thread(tcpServer);
+    tcpThread.setDaemon(true);
+    tcpThread.start();
+
     try {
         Thread.sleep(300);
     } catch (InterruptedException e) {
@@ -48,15 +56,24 @@ public static void main(String[] args) {
             dev1.sendUplink(new ApplicationPayload(linea, 1));
         }
         try {
-            Thread.sleep(200);
+            Thread.sleep(150);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     } catch (Exception e) {
         System.err.println("Error fuente: " + e.getMessage());
     }
+    // Envíos de prueba para TCP
+        dev2.sendUplink(new ApplicationPayload("msg-dev2", 2));
+        dev3.sendUplink(new ApplicationPayload("msg-dev3", 3));
 
     System.out.println("\n=== Configuraciones LoRaWAN ===");
+    try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    
     System.out.printf("dev1: %s (%.1fMHz SF%d %s)%n", 
         dev1.getConfig().name(), dev1.getConfig().getFrequencyMHz(),
         dev1.getConfig().getSpreadingFactor(), dev1.getConfig().getCodingRate());
@@ -67,11 +84,7 @@ public static void main(String[] args) {
         dev3.getConfig().name(), dev3.getConfig().getFrequencyMHz(),
         dev3.getConfig().getSpreadingFactor(), dev3.getConfig().getCodingRate());
 
-    try {
-            Thread.sleep(500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    
 
     }
 

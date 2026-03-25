@@ -31,6 +31,11 @@ public class Gateway {
         System.out.printf("[Gateway %s @%.1f,%.1f] Rx UDP payload%n", gatewayId, x, y);
         networkServer.receiveFromGateway(gatewayId, payload);
     }
+    public void receiveTcpMessage(String payload) {
+        System.out.printf("[Gateway %s @%.1f,%.1f] Rx TCP payload%n", gatewayId, x, y);
+        networkServer.receiveFromGateway(gatewayId, payload);
+    }
+
 
 
     public String getGatewayId() { return gatewayId; }
