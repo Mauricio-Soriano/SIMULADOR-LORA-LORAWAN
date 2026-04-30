@@ -19,9 +19,12 @@ public class Simulator {
 public static void main(String[] args) {
     System.out.println("Starting LoRaWAN simulator v3 (with LoRaConfig)...");
 
-    // Configuración
     NetworkServer ns = new NetworkServer();
-    Gateway gw = new Gateway("gw-1", ns, 100.0, 50.0,20);
+    Gateway gw = new Gateway("gw-1", ns, 100.0, 50.0, 20);
+
+    // Registrar gateway en el NetworkServer
+    ns.registerGateway(gw);
+
     //Para UDP
     UdpGatewayServer udpServer = new UdpGatewayServer(5000, gw);
     Thread serverThread = new Thread(udpServer);

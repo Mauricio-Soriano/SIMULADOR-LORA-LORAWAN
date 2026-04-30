@@ -1,5 +1,5 @@
 
-/*VERSIÓN ACTUALIZADA PARA EL NS ACTIVIDAD 17.8 */
+/*VERSIÓN ACTUALIZADA PARA EL NS ACTIVIDAD 17.9 */
 /*Se agrega
 ***Payload decodificado
 ***Fuente decodificada
@@ -11,11 +11,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import mx.mauricio.lorawan.device.Device;
+import mx.mauricio.lorawan.frame.DownlinkFrame;
 import mx.mauricio.lorawan.gateway.Gateway;
 
 public class NetworkServer {
 
     private final Map<String, Device> registeredDevices = new HashMap<>();
+    private final Map<String, Gateway> registeredGateways = new HashMap<>();
 
     public void registerDevice(Device device) {
         registeredDevices.put(device.getDeviceId(), device);
@@ -25,12 +27,21 @@ public class NetworkServer {
                 + device.getConfig().getDeviceClass());
     }
 
+    public void registerGateway(Gateway gateway) {
+        registeredGateways.put(gateway.getGatewayId(), gateway);
+        System.out.println("[NetworkServer] Gateway registrado: " + gateway.getGatewayId());
+    }
+
     public Device getRegisteredDevice(String deviceId) {
         return registeredDevices.get(deviceId);
     }
 
     public boolean isRegistered(String deviceId) {
         return registeredDevices.containsKey(deviceId);
+    }
+
+    public Gateway getRegisteredGateway(String gatewayId) {
+        return registeredGateways.get(gatewayId);
     }
 
     public void handleUplink(Device device, Gateway gateway, String payload) {
@@ -72,12 +83,44 @@ public class NetworkServer {
             String decodedData = fields.get("DATA");
             System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
             System.out.println("[NetworkServer] Fuente decodificada: "
-                + describeDecodedSource(fields.get("FPORT"), decodedData));
+                    + describeDecodedSource(fields.get("FPORT"), decodedData));
 
+            evaluateDownlinkLogic(fields, gatewayId);
 
         } else {
             System.out.println("[NetworkServer] Verificación de integridad: ERROR");
         }
+    }
+
+    private void evaluateDownlinkLogic(Map<String, String> fields, String gatewayId) {
+        String fPort = fields.get("FPORT");
+        String data = fields.get("DATA");
+        String devAddr = fields.get("DEV");
+
+        if ("1".equals(fPort) && isNumeric(data)) {
+            double value = Double.parseDouble(data);
+            if (value > 27.0) {
+                String command = "CMD_ALERT_HIGH";
+                sendDownlink(gatewayId, devAddr, "0001", "99", command);
+            }
+        }
+    }
+
+    private void sendDownlink(String gatewayId, String devAddr, String fCnt, String fPort, String command) {
+        DownlinkFrame downlink = new DownlinkFrame(devAddr, fCnt, fPort, command);
+        String payload = downlink.toPayloadString();
+
+        System.out.println("[NetworkServer] Generando Downlink para " + devAddr + ": " + command);
+        System.out.println("[NetworkServer] Enviando Downlink vía gateway " + gatewayId + "...");
+
+        Gateway gateway = getRegisteredGateway(gatewayId);
+
+        if (gateway == null) {
+            System.out.println("[NetworkServer] ERROR: Gateway no encontrado: " + gatewayId);
+            return;
+        }
+
+        gateway.sendDownlink(payload);
     }
 
     private Map<String, String> parsePayload(String payload) {
@@ -126,7 +169,7 @@ public class NetworkServer {
     }
 
     private String describeDecodedSource(String fport, String data) {
-    String sourceType;
+        String sourceType;
 
         switch (fport) {
             case "1":
@@ -145,9 +188,7 @@ public class NetworkServer {
 
         return sourceType + " (FPORT " + fport + ") = " + data;
     }
-
 }
-
 
 
 /*VERSIÓN ACTUALIZADA PARA EL NS ACTIVIDAD 17.7 */
