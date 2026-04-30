@@ -64,36 +64,32 @@ public class NetworkServer {
                 + payload);
 
         Map<String, String> fields = parsePayload(payload);
+        logParsedFields(fields);
 
-        System.out.println("[NetworkServer] Campos parseados:");
-        for (Map.Entry<String, String> entry : fields.entrySet()) {
-            System.out.println("  " + entry.getKey() + " = " + entry.getValue());
-        }
-
-        if (isValidPayload(fields)) {
-            System.out.println("[NetworkServer] Verificación de integridad: OK");
-
-            String deviceId = fields.get("DEV");
-            Device device = getRegisteredDevice(deviceId);
-
-            if (device != null) {
-                System.out.println("[NetworkServer] Dispositivo identificado: " + deviceId);
-                System.out.println("[NetworkServer] Clase del dispositivo: "
-                        + device.getConfig().getDeviceClass());
-            } else {
-                System.out.println("[NetworkServer] Dispositivo no registrado: " + deviceId);
-            }
-
-            String decodedData = fields.get("DATA");
-            System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
-            System.out.println("[NetworkServer] Fuente decodificada: "
-                    + describeDecodedSource(fields.get("FPORT"), decodedData));
-
-            evaluateDownlinkLogic(fields, gatewayId, transport);
-
-        } else {
+        if (!isValidPayload(fields)) {
             System.out.println("[NetworkServer] Verificación de integridad: ERROR");
+            return;
         }
+
+        System.out.println("[NetworkServer] Verificación de integridad: OK");
+
+        String deviceId = fields.get("DEV");
+        Device device = getRegisteredDevice(deviceId);
+
+        if (device != null) {
+            System.out.println("[NetworkServer] Dispositivo identificado: " + deviceId);
+            System.out.println("[NetworkServer] Clase del dispositivo: "
+                    + device.getConfig().getDeviceClass());
+        } else {
+            System.out.println("[NetworkServer] Dispositivo no registrado: " + deviceId);
+        }
+
+        String decodedData = fields.get("DATA");
+        System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
+        System.out.println("[NetworkServer] Fuente decodificada: "
+                + describeDecodedSource(fields.get("FPORT"), decodedData));
+
+        evaluateDownlinkLogic(fields, gatewayId, transport);
     }
 
     private void evaluateDownlinkLogic(Map<String, String> fields, String gatewayId, String transport) {
@@ -104,20 +100,18 @@ public class NetworkServer {
         if ("1".equals(fPort) && isNumeric(data)) {
             double value = Double.parseDouble(data);
             if (value > 27.0) {
-                String command = "CMD_ALERT_HIGH";
-                String downlinkFCnt = nextDownlinkCounter(devAddr);
-                sendDownlink(gatewayId, devAddr, downlinkFCnt, "99", command, transport);
+                sendCommandDownlink(gatewayId, devAddr, "CMD_ALERT_HIGH", "99", transport);
             }
+            return;
         }
 
         if ("2".equals(fPort) || "3".equals(fPort)) {
-            String command = "CMD_TCP_ACK";
-            String downlinkFCnt = nextDownlinkCounter(devAddr);
-            sendDownlink(gatewayId, devAddr, downlinkFCnt, "99", command, transport);
+            sendCommandDownlink(gatewayId, devAddr, "CMD_TCP_ACK", "99", transport);
         }
     }
 
-    private void sendDownlink(String gatewayId, String devAddr, String fCnt, String fPort, String command, String transport) {
+    private void sendCommandDownlink(String gatewayId, String devAddr, String command, String fPort, String transport) {
+        String fCnt = nextDownlinkCounter(devAddr);
         DownlinkFrame downlink = new DownlinkFrame(devAddr, fCnt, fPort, command);
         String payload = downlink.toPayloadString();
 
@@ -149,6 +143,13 @@ public class NetworkServer {
         return fields;
     }
 
+    private void logParsedFields(Map<String, String> fields) {
+        System.out.println("[NetworkServer] Campos parseados:");
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            System.out.println("  " + entry.getKey() + " = " + entry.getValue());
+        }
+    }
+
     private boolean isValidPayload(Map<String, String> fields) {
         if (!fields.containsKey("MHDR")) return false;
         if (!fields.containsKey("DEV")) return false;
@@ -157,18 +158,23 @@ public class NetworkServer {
         if (!fields.containsKey("DATA")) return false;
         if (!fields.containsKey("MIC")) return false;
 
-        if (fields.get("MHDR") == null || !fields.get("MHDR").equals("40")) return false;
-        if (fields.get("DEV") == null || fields.get("DEV").isEmpty()) return false;
-        if (fields.get("FCNT") == null || fields.get("FCNT").isEmpty()) return false;
-        if (fields.get("FPORT") == null || fields.get("FPORT").isEmpty()) return false;
+        if (!"40".equals(fields.get("MHDR"))) return false;
+        if (isBlank(fields.get("DEV"))) return false;
+        if (isBlank(fields.get("FCNT"))) return false;
+        if (isBlank(fields.get("FPORT"))) return false;
         if (fields.get("DATA") == null) return false;
-        if (fields.get("MIC") == null || fields.get("MIC").isEmpty()) return false;
+        if (isBlank(fields.get("MIC"))) return false;
 
         return true;
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     private boolean isNumeric(String value) {
-        if (value == null || value.isEmpty()) return false;
+        if (isBlank(value)) return false;
+
         try {
             Double.parseDouble(value);
             return true;

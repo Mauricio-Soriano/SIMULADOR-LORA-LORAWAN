@@ -11,16 +11,10 @@ public class Gateway {
 
     private final String gatewayId;
     private final NetworkServer networkServer;
-
     private final double x, y;
     private final int maxTxPowerDBm;
 
-    private String lastUdpSenderIp;
-    private int lastUdpSenderPort;
-    private UdpGatewayServer lastUdpServer;
-
-    private String lastTcpSenderIp;
-    private Socket lastTcpClientSocket;
+    private TransportContext lastContext = TransportContext.none();
 
     public Gateway(String gatewayId, NetworkServer networkServer) {
         this(gatewayId, networkServer, 0.0, 0.0, 20);
@@ -39,10 +33,7 @@ public class Gateway {
         System.out.printf("[Gateway %s @%.1f,%.1f] Rx UDP payload desde %s:%d%n",
                 gatewayId, x, y, senderIp, senderPort);
 
-        this.lastUdpSenderIp = senderIp;
-        this.lastUdpSenderPort = senderPort;
-        this.lastUdpServer = udpServer;
-
+        this.lastContext = TransportContext.udp(senderIp, senderPort, udpServer);
         networkServer.receiveFromGateway(gatewayId, payload, "UDP");
     }
 
@@ -50,9 +41,7 @@ public class Gateway {
         System.out.printf("[Gateway %s @%.1f,%.1f] Rx TCP payload desde %s%n",
                 gatewayId, x, y, senderIp);
 
-        this.lastTcpSenderIp = senderIp;
-        this.lastTcpClientSocket = clientSocket;
-
+        this.lastContext = TransportContext.tcp(senderIp, clientSocket);
         networkServer.receiveFromGateway(gatewayId, payload, "TCP");
     }
 
@@ -72,8 +61,8 @@ public class Gateway {
         System.out.println("[Gateway " + gatewayId + "] Transmitiendo Downlink...");
 
         if ("UDP".equalsIgnoreCase(transport)) {
-            if (lastUdpServer != null && lastUdpSenderIp != null && lastUdpSenderPort > 0) {
-                lastUdpServer.sendDownlink(payload, lastUdpSenderIp, lastUdpSenderPort);
+            if (lastContext.isUdp() && lastContext.getUdpServer() != null) {
+                lastContext.getUdpServer().sendDownlink(payload, lastContext.getSenderIp(), lastContext.getSenderPort());
                 return;
             }
             System.out.println("[Gateway " + gatewayId + "] No hay contexto UDP disponible para responder.");
@@ -81,11 +70,11 @@ public class Gateway {
         }
 
         if ("TCP".equalsIgnoreCase(transport)) {
-            if (lastTcpClientSocket != null && !lastTcpClientSocket.isClosed()) {
+            if (lastContext.isTcp() && lastContext.getTcpSocket() != null && !lastContext.getTcpSocket().isClosed()) {
                 try {
-                    PrintWriter out = new PrintWriter(lastTcpClientSocket.getOutputStream(), true);
+                    PrintWriter out = new PrintWriter(lastContext.getTcpSocket().getOutputStream(), true);
                     out.println(payload);
-                    System.out.println("[Gateway " + gatewayId + "] Downlink TCP enviado a " + lastTcpSenderIp + " -> " + payload);
+                    System.out.println("[Gateway " + gatewayId + "] Downlink TCP enviado a " + lastContext.getSenderIp() + " -> " + payload);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
