@@ -1,5 +1,8 @@
 package mx.mauricio.lorawan.gateway;
 
+import java.io.PrintWriter;
+import java.net.Socket;
+
 import mx.mauricio.lorawan.communication.UdpGatewayServer;
 import mx.mauricio.lorawan.device.Device;
 import mx.mauricio.lorawan.network.NetworkServer;
@@ -9,14 +12,15 @@ public class Gateway {
     private final String gatewayId;
     private final NetworkServer networkServer;
 
-    // Parámetros del Gateway
     private final double x, y;
     private final int maxTxPowerDBm;
 
-    // Contexto UDP para responder al último emisor
     private String lastUdpSenderIp;
     private int lastUdpSenderPort;
     private UdpGatewayServer lastUdpServer;
+
+    private String lastTcpSenderIp;
+    private Socket lastTcpClientSocket;
 
     public Gateway(String gatewayId, NetworkServer networkServer) {
         this(gatewayId, networkServer, 0.0, 0.0, 20);
@@ -39,12 +43,17 @@ public class Gateway {
         this.lastUdpSenderPort = senderPort;
         this.lastUdpServer = udpServer;
 
-        networkServer.receiveFromGateway(gatewayId, payload);
+        networkServer.receiveFromGateway(gatewayId, payload, "UDP");
     }
 
-    public void receiveTcpMessage(String payload) {
-        System.out.printf("[Gateway %s @%.1f,%.1f] Rx TCP payload%n", gatewayId, x, y);
-        networkServer.receiveFromGateway(gatewayId, payload);
+    public void receiveTcpMessage(String payload, String senderIp, Socket clientSocket) {
+        System.out.printf("[Gateway %s @%.1f,%.1f] Rx TCP payload desde %s%n",
+                gatewayId, x, y, senderIp);
+
+        this.lastTcpSenderIp = senderIp;
+        this.lastTcpClientSocket = clientSocket;
+
+        networkServer.receiveFromGateway(gatewayId, payload, "TCP");
     }
 
     public String getGatewayId() { return gatewayId; }
@@ -59,17 +68,33 @@ public class Gateway {
         networkServer.handleUplink(device, this, payload);
     }
 
-    public void sendDownlink(String payload) {
+    public void sendDownlink(String payload, String transport) {
         System.out.println("[Gateway " + gatewayId + "] Transmitiendo Downlink...");
 
-        if (lastUdpServer == null || lastUdpSenderIp == null || lastUdpSenderPort <= 0) {
+        if ("UDP".equalsIgnoreCase(transport)) {
+            if (lastUdpServer != null && lastUdpSenderIp != null && lastUdpSenderPort > 0) {
+                lastUdpServer.sendDownlink(payload, lastUdpSenderIp, lastUdpSenderPort);
+                return;
+            }
             System.out.println("[Gateway " + gatewayId + "] No hay contexto UDP disponible para responder.");
             return;
         }
 
-        lastUdpServer.sendDownlink(payload, lastUdpSenderIp, lastUdpSenderPort);
+        if ("TCP".equalsIgnoreCase(transport)) {
+            if (lastTcpClientSocket != null && !lastTcpClientSocket.isClosed()) {
+                try {
+                    PrintWriter out = new PrintWriter(lastTcpClientSocket.getOutputStream(), true);
+                    out.println(payload);
+                    System.out.println("[Gateway " + gatewayId + "] Downlink TCP enviado a " + lastTcpSenderIp + " -> " + payload);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+            System.out.println("[Gateway " + gatewayId + "] No hay contexto TCP disponible para responder.");
+            return;
+        }
+
+        System.out.println("[Gateway " + gatewayId + "] Transporte no soportado: " + transport);
     }
 }
-
-
-

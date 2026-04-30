@@ -1,10 +1,3 @@
-
-/*VERSIÓN ACTUALIZADA PARA EL NS ACTIVIDAD 17.9 */
-/*Se agrega
-***Payload decodificado
-***Fuente decodificada
-*/
-
 package mx.mauricio.lorawan.network;
 
 import java.util.HashMap;
@@ -61,9 +54,13 @@ public class NetworkServer {
     }
 
     public void receiveFromGateway(String gatewayId, String payload) {
+        receiveFromGateway(gatewayId, payload, "UDP");
+    }
+
+    public void receiveFromGateway(String gatewayId, String payload, String transport) {
         System.out.println("[NetworkServer] Uplink recibido vía gateway "
                 + gatewayId
-                + ": "
+                + " (" + transport + "): "
                 + payload);
 
         Map<String, String> fields = parsePayload(payload);
@@ -92,14 +89,14 @@ public class NetworkServer {
             System.out.println("[NetworkServer] Fuente decodificada: "
                     + describeDecodedSource(fields.get("FPORT"), decodedData));
 
-            evaluateDownlinkLogic(fields, gatewayId);
+            evaluateDownlinkLogic(fields, gatewayId, transport);
 
         } else {
             System.out.println("[NetworkServer] Verificación de integridad: ERROR");
         }
     }
 
-    private void evaluateDownlinkLogic(Map<String, String> fields, String gatewayId) {
+    private void evaluateDownlinkLogic(Map<String, String> fields, String gatewayId, String transport) {
         String fPort = fields.get("FPORT");
         String data = fields.get("DATA");
         String devAddr = fields.get("DEV");
@@ -109,18 +106,24 @@ public class NetworkServer {
             if (value > 27.0) {
                 String command = "CMD_ALERT_HIGH";
                 String downlinkFCnt = nextDownlinkCounter(devAddr);
-                sendDownlink(gatewayId, devAddr, downlinkFCnt, "99", command);
+                sendDownlink(gatewayId, devAddr, downlinkFCnt, "99", command, transport);
             }
+        }
+
+        if ("2".equals(fPort) || "3".equals(fPort)) {
+            String command = "CMD_TCP_ACK";
+            String downlinkFCnt = nextDownlinkCounter(devAddr);
+            sendDownlink(gatewayId, devAddr, downlinkFCnt, "99", command, transport);
         }
     }
 
-    private void sendDownlink(String gatewayId, String devAddr, String fCnt, String fPort, String command) {
+    private void sendDownlink(String gatewayId, String devAddr, String fCnt, String fPort, String command, String transport) {
         DownlinkFrame downlink = new DownlinkFrame(devAddr, fCnt, fPort, command);
         String payload = downlink.toPayloadString();
 
         System.out.println("[NetworkServer] Generando Downlink para " + devAddr + ": " + command);
         System.out.println("[NetworkServer] FCNT downlink asignado: " + fCnt);
-        System.out.println("[NetworkServer] Enviando Downlink vía gateway " + gatewayId + "...");
+        System.out.println("[NetworkServer] Enviando Downlink vía gateway " + gatewayId + " (" + transport + ")...");
 
         Gateway gateway = getRegisteredGateway(gatewayId);
 
@@ -129,7 +132,7 @@ public class NetworkServer {
             return;
         }
 
-        gateway.sendDownlink(payload);
+        gateway.sendDownlink(payload, transport);
     }
 
     private Map<String, String> parsePayload(String payload) {
@@ -165,10 +168,7 @@ public class NetworkServer {
     }
 
     private boolean isNumeric(String value) {
-        if (value == null || value.isEmpty()) {
-            return false;
-        }
-
+        if (value == null || value.isEmpty()) return false;
         try {
             Double.parseDouble(value);
             return true;
