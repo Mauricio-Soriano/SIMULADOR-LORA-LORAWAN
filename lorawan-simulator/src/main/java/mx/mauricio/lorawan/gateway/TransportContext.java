@@ -15,8 +15,11 @@ public class TransportContext {
     private final UdpGatewayServer udpServer;
     private final Socket tcpSocket;
 
-    private TransportContext(Type type, String senderIp, int senderPort,
-                             UdpGatewayServer udpServer, Socket tcpSocket) {
+    private TransportContext(Type type,
+                             String senderIp,
+                             int senderPort,
+                             UdpGatewayServer udpServer,
+                             Socket tcpSocket) {
         this.type = type;
         this.senderIp = senderIp;
         this.senderPort = senderPort;

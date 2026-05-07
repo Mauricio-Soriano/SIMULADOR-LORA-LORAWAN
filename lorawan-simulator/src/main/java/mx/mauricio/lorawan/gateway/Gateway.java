@@ -11,7 +11,8 @@ public class Gateway {
 
     private final String gatewayId;
     private final NetworkServer networkServer;
-    private final double x, y;
+    private final double x;
+    private final double y;
     private final int maxTxPowerDBm;
 
     private TransportContext lastContext = TransportContext.none();
@@ -62,24 +63,33 @@ public class Gateway {
 
         if ("UDP".equalsIgnoreCase(transport)) {
             if (lastContext.isUdp() && lastContext.getUdpServer() != null) {
-                lastContext.getUdpServer().sendDownlink(payload, lastContext.getSenderIp(), lastContext.getSenderPort());
+                lastContext.getUdpServer().sendDownlink(
+                        payload,
+                        lastContext.getSenderIp(),
+                        lastContext.getSenderPort()
+                );
                 return;
             }
+
             System.out.println("[Gateway " + gatewayId + "] No hay contexto UDP disponible para responder.");
             return;
         }
 
         if ("TCP".equalsIgnoreCase(transport)) {
-            if (lastContext.isTcp() && lastContext.getTcpSocket() != null && !lastContext.getTcpSocket().isClosed()) {
+            if (lastContext.isTcp()
+                    && lastContext.getTcpSocket() != null
+                    && !lastContext.getTcpSocket().isClosed()) {
                 try {
                     PrintWriter out = new PrintWriter(lastContext.getTcpSocket().getOutputStream(), true);
                     out.println(payload);
-                    System.out.println("[Gateway " + gatewayId + "] Downlink TCP enviado a " + lastContext.getSenderIp() + " -> " + payload);
+                    System.out.println("[Gateway " + gatewayId + "] Downlink TCP enviado a "
+                            + lastContext.getSenderIp() + " -> " + payload);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
                 return;
             }
+
             System.out.println("[Gateway " + gatewayId + "] No hay contexto TCP disponible para responder.");
             return;
         }
