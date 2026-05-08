@@ -1,7 +1,9 @@
-package mx.mauricio.lorawan.performance;
+
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+
+import mx.mauricio.lorawan.performance.Cost231WalfischIkegamiModel;
 
 public class Cost231ModelTest {
 

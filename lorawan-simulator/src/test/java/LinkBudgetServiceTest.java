@@ -1,7 +1,10 @@
-package mx.mauricio.lorawan.performance;
+
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+
+import mx.mauricio.lorawan.performance.LinkBudgetResult;
+import mx.mauricio.lorawan.performance.LinkBudgetService;
 
 public class LinkBudgetServiceTest {
 
