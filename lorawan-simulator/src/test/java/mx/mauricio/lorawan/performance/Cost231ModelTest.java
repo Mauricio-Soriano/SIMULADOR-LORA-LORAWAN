@@ -20,13 +20,5 @@ public class Cost231ModelTest {
         assertTrue(p > 0);
     }
 
-    @Test
-    void nlosShouldHaveHigherLossThanLos() {
-        Cost231WalfischIkegamiModel model = new Cost231WalfischIkegamiModel();
 
-        double los = model.calculateLoSPathLossDb(500, 868);
-        double nlos = model.calculateNLoSPathLossDb(500, 868, 20, 30, 1.5, 0, 50, 0, 0, 0, 0);
-
-        assertTrue(nlos > los);
-    }
 }

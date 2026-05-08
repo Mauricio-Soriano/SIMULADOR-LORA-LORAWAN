@@ -12,6 +12,7 @@ import mx.mauricio.lorawan.network.policy.ClassBDownlinkPolicy;
 import mx.mauricio.lorawan.network.policy.ClassCDownlinkPolicy;
 import mx.mauricio.lorawan.network.policy.DownlinkDecision;
 import mx.mauricio.lorawan.network.policy.DownlinkPolicy;
+import mx.mauricio.lorawan.performance.LinkBudgetResult;
 import mx.mauricio.lorawan.performance.LinkBudgetService;
 import mx.mauricio.lorawan.performance.PerformanceMetric;
 import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
@@ -26,8 +27,18 @@ public class NetworkServer {
     private final DownlinkPolicy classBPolicy = new ClassBDownlinkPolicy();
     private final DownlinkPolicy classCPolicy = new ClassCDownlinkPolicy();
 
-    private final PerformanceMetricsStore performanceMetricsStore = new PerformanceMetricsStore();
-    private final LinkBudgetService linkBudgetService = new LinkBudgetService();
+    private final PerformanceMetricsStore performanceMetricsStore;
+    private final LinkBudgetService linkBudgetService;
+
+    public NetworkServer() {
+        this(new PerformanceMetricsStore(), new LinkBudgetService());
+    }
+
+    public NetworkServer(PerformanceMetricsStore performanceMetricsStore,
+                         LinkBudgetService linkBudgetService) {
+        this.performanceMetricsStore = performanceMetricsStore;
+        this.linkBudgetService = linkBudgetService;
+    }
 
     public void registerDevice(Device device) {
         registeredDevices.put(device.getDeviceId(), device);
@@ -52,6 +63,10 @@ public class NetworkServer {
 
     public Gateway getRegisteredGateway(String gatewayId) {
         return registeredGateways.get(gatewayId);
+    }
+
+    public PerformanceMetricsStore getPerformanceMetricsStore() {
+        return performanceMetricsStore;
     }
 
     public void handleUplink(Device device, Gateway gateway, String payload) {
@@ -99,6 +114,11 @@ public class NetworkServer {
         System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
         System.out.println("[NetworkServer] Fuente decodificada: "
                 + describeDecodedSource(fields.get("FPORT"), decodedData));
+
+        Gateway gateway = getRegisteredGateway(gatewayId);
+        if (gateway != null) {
+            registerTransmissionMetric(device, gateway, true);
+        }
 
         evaluateDownlinkPolicy(device, fields, gatewayId, transport);
     }
@@ -164,6 +184,44 @@ public class NetworkServer {
         gateway.sendDownlink(payload, transport);
     }
 
+    public void registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
+        double dx = gateway.getX();
+        double dy = gateway.getY();
+        double distanceMeters = Math.sqrt(dx * dx + dy * dy);
+
+        LinkBudgetResult result = linkBudgetService.evaluate(
+                device.getDeviceId(),
+                gateway.getGatewayId(),
+                distanceMeters,
+                device.getConfig().getFrequencyMHz(),
+                gateway.getMaxTxPowerDBm(),
+                -130.0,
+                los,
+                20.0,
+                30.0,
+                1.5,
+                0.0,
+                50.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+        );
+
+        performanceMetricsStore.add(new PerformanceMetric(System.currentTimeMillis(), result));
+
+        System.out.printf(
+                "[Performance] dev=%s gw=%s dist=%.2fm loss=%.2fdB rx=%.2fdBm margin=%.2fdB los=%s%n",
+                result.getDeviceId(),
+                result.getGatewayId(),
+                result.getDistanceMeters(),
+                result.getPathLossDb(),
+                result.getRxPowerDbm(),
+                result.getMarginDb(),
+                result.isLos()
+        );
+    }
+
     private String nextDownlinkCounter(String devAddr) {
         int nextValue = downlinkCounters.getOrDefault(devAddr, 0) + 1;
         downlinkCounters.put(devAddr, nextValue);
@@ -187,7 +245,7 @@ public class NetworkServer {
     private void logParsedFields(Map<String, String> fields) {
         System.out.println("[NetworkServer] Campos parseados:");
         for (Map.Entry<String, String> entry : fields.entrySet()) {
-            System.out.println("  " + entry.getKey() + " = " + entry.getValue());
+            System.out.println(" " + entry.getKey() + " = " + entry.getValue());
         }
     }
 
@@ -207,6 +265,10 @@ public class NetworkServer {
         if (isBlank(fields.get("MIC"))) return false;
 
         return true;
+    }
+
+    public boolean testIsValidPayload(String payload) {
+        return isValidPayload(parsePayload(payload));
     }
 
     private boolean isBlank(String value) {
@@ -246,16 +308,4 @@ public class NetworkServer {
 
         return sourceType + " (FPORT " + fPort + ") = " + data;
     }
-
-    
-
-    public boolean testIsValidPayload(String payload) {
-        return isValidPayload(parsePayload(payload));
-    }
-
-    public void registerPerformanceMetric(PerformanceMetric metric) {
-        performanceMetricsStore.add(metric);
-    }
-
-
 }
