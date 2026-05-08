@@ -12,6 +12,9 @@ import mx.mauricio.lorawan.network.policy.ClassBDownlinkPolicy;
 import mx.mauricio.lorawan.network.policy.ClassCDownlinkPolicy;
 import mx.mauricio.lorawan.network.policy.DownlinkDecision;
 import mx.mauricio.lorawan.network.policy.DownlinkPolicy;
+import mx.mauricio.lorawan.performance.LinkBudgetService;
+import mx.mauricio.lorawan.performance.PerformanceMetric;
+import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
 
 public class NetworkServer {
 
@@ -22,6 +25,9 @@ public class NetworkServer {
     private final DownlinkPolicy classAPolicy = new ClassADownlinkPolicy();
     private final DownlinkPolicy classBPolicy = new ClassBDownlinkPolicy();
     private final DownlinkPolicy classCPolicy = new ClassCDownlinkPolicy();
+
+    private final PerformanceMetricsStore performanceMetricsStore = new PerformanceMetricsStore();
+    private final LinkBudgetService linkBudgetService = new LinkBudgetService();
 
     public void registerDevice(Device device) {
         registeredDevices.put(device.getDeviceId(), device);
@@ -240,4 +246,16 @@ public class NetworkServer {
 
         return sourceType + " (FPORT " + fPort + ") = " + data;
     }
+
+    
+
+    public boolean testIsValidPayload(String payload) {
+        return isValidPayload(parsePayload(payload));
+    }
+
+    public void registerPerformanceMetric(PerformanceMetric metric) {
+        performanceMetricsStore.add(metric);
+    }
+
+
 }
