@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 
 import mx.mauricio.lorawan.gateway.Gateway;
 
@@ -11,7 +12,8 @@ public class TcpGatewayServer implements Runnable {
 
     private final int port;
     private final Gateway gateway;
-    private boolean running = true;
+    private volatile boolean running = true;
+    private ServerSocket serverSocket;
 
     public TcpGatewayServer(int port, Gateway gateway) {
         this.port = port;
@@ -20,14 +22,15 @@ public class TcpGatewayServer implements Runnable {
 
     @Override
     public void run() {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
+        try {
+            serverSocket = new ServerSocket(port);
             System.out.println("[TCP Server] Gateway escuchando en puerto " + port);
 
             while (running) {
-                Socket clientSocket = serverSocket.accept();
-
-                try (BufferedReader in = new BufferedReader(
-                        new InputStreamReader(clientSocket.getInputStream()))) {
+                try {
+                    Socket clientSocket = serverSocket.accept();
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(clientSocket.getInputStream()));
 
                     String message = in.readLine();
                     String senderIp = clientSocket.getInetAddress().getHostAddress();
@@ -36,18 +39,28 @@ public class TcpGatewayServer implements Runnable {
                         System.out.println("[TCP Server] Mensaje recibido desde " + senderIp + ": " + message);
                         gateway.receiveTcpMessage(message, senderIp, clientSocket);
                     }
-                } finally {
-                    if (!clientSocket.isClosed()) {
-                        clientSocket.close();
+
+                } catch (SocketException e) {
+                    if (running) {
+                        e.printStackTrace();
                     }
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            if (running) {
+                e.printStackTrace();
+            }
         }
     }
 
     public void stop() {
         running = false;
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

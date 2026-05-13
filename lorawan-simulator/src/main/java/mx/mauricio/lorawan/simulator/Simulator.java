@@ -26,9 +26,9 @@ public class Simulator {
         ns.registerGateway(gw);
 
         UdpGatewayServer udpServer = new UdpGatewayServer(5000, gw);
-        Thread serverThread = new Thread(udpServer);
-        serverThread.setDaemon(true);
-        serverThread.start();
+        Thread udpThread = new Thread(udpServer);
+        udpThread.setDaemon(true);
+        udpThread.start();
 
         TcpGatewayServer tcpServer = new TcpGatewayServer(6000, gw);
         Thread tcpThread = new Thread(tcpServer);
@@ -55,7 +55,6 @@ public class Simulator {
 
             for (String linea : fuente.getLineas()) {
                 dev1.sendUplink(new ApplicationPayload(linea, 1));
-                ns.registerTransmissionMetric(dev1, gw, true);
             }
 
             try {
@@ -63,16 +62,12 @@ public class Simulator {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-
         } catch (Exception e) {
             System.err.println("Error fuente: " + e.getMessage());
         }
 
         dev2.sendUplink(new ApplicationPayload("msg-dev2", 2));
-        ns.registerTransmissionMetric(dev2, gw, false);
-
         dev3.sendUplink(new ApplicationPayload("msg-dev3", 3));
-        ns.registerTransmissionMetric(dev3, gw, false);
 
         try {
             Thread.sleep(700);
@@ -105,6 +100,16 @@ public class Simulator {
 
         System.out.println("\n=== Métricas de rendimiento ===");
         System.out.println(csv);
+
+        udpServer.stop();
+        tcpServer.stop();
+
+        try {
+            udpThread.join(1000);
+            tcpThread.join(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
 
