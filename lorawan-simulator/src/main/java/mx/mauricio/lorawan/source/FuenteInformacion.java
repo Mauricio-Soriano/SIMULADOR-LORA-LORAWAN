@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class FuenteInformacion implements IFuenteVisualizable {
 
@@ -23,12 +24,14 @@ public class FuenteInformacion implements IFuenteVisualizable {
         int idx = nombre.lastIndexOf('.');
         String extension = (idx >= 0) ? nombre.substring(idx + 1).toLowerCase() : "";
         boolean permitido = false;
+
         for (String f : FORMATOS_PERMITIDOS) {
             if (f.equals(extension)) {
                 permitido = true;
                 break;
             }
         }
+
         if (!permitido) {
             throw new IllegalArgumentException("Formato no permitido: " + extension);
         }
@@ -36,8 +39,40 @@ public class FuenteInformacion implements IFuenteVisualizable {
 
     @Override
     public void cargarInformacion() throws IOException {
-        this.lineas = Files.readAllLines(rutaArchivo);
+        this.lineas = Files.readAllLines(rutaArchivo).stream()
+                .skip(1) // salta encabezado CSV
+                .map(this::normalizarLineaCsv)
+                .filter(linea -> !linea.isBlank())
+                .collect(Collectors.toList());
+
         imprimirPreview();
+    }
+
+    private String normalizarLineaCsv(String linea) {
+        String[] cols = linea.split(",", -1);
+
+        if (cols.length == 0) {
+            return "";
+        }
+
+        // Si la fila tiene menos de 13 columnas, completar con vacíos
+        String[] normalizada = new String[13];
+        for (int i = 0; i < normalizada.length; i++) {
+            if (i < cols.length) {
+                normalizada[i] = cols[i].trim();
+            } else {
+                normalizada[i] = "";
+            }
+        }
+
+        // Si una celda viene vacía, reemplazar por 0
+        for (int i = 0; i < normalizada.length; i++) {
+            if (normalizada[i] == null || normalizada[i].isBlank()) {
+                normalizada[i] = "0";
+            }
+        }
+
+        return String.join(",", normalizada);
     }
 
     @Override
