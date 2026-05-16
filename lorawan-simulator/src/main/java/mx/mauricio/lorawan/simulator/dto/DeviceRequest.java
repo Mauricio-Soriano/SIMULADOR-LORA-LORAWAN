@@ -1,5 +1,8 @@
 package mx.mauricio.lorawan.simulator.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import mx.mauricio.lorawan.config.LoRaConfig;
 
 public class DeviceRequest {
@@ -10,9 +13,11 @@ public class DeviceRequest {
     private double x;
     private double y;
     private boolean enabled;
+    private List<Integer> columnIndexes;
 
     public DeviceRequest() {
         this.enabled = true;
+        this.columnIndexes = new ArrayList<>();
     }
 
     public DeviceRequest(String deviceId, LoRaConfig config, int fPort, double x, double y) {
@@ -22,6 +27,17 @@ public class DeviceRequest {
         this.x = x;
         this.y = y;
         this.enabled = true;
+        this.columnIndexes = new ArrayList<>();
+    }
+
+    public DeviceRequest(String deviceId, LoRaConfig config, int fPort, double x, double y, List<Integer> columnIndexes) {
+        this.deviceId = deviceId;
+        this.config = config;
+        this.fPort = fPort;
+        this.x = x;
+        this.y = y;
+        this.enabled = true;
+        this.columnIndexes = (columnIndexes != null) ? new ArrayList<>(columnIndexes) : new ArrayList<>();
     }
 
     public String getDeviceId() {
@@ -70,5 +86,13 @@ public class DeviceRequest {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public List<Integer> getColumnIndexes() {
+        return columnIndexes;
+    }
+
+    public void setColumnIndexes(List<Integer> columnIndexes) {
+        this.columnIndexes = (columnIndexes != null) ? new ArrayList<>(columnIndexes) : new ArrayList<>();
     }
 }

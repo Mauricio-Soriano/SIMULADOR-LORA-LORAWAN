@@ -47,6 +47,7 @@ public class SimulationRunner {
 
         List<Device> devices = new ArrayList<>();
         List<DeviceRequest> enabledDevices = new ArrayList<>();
+        PayloadMapper payloadMapper = new PayloadMapper();
 
         for (DeviceRequest deviceRequest : request.getDevices()) {
             if (deviceRequest == null || !deviceRequest.isEnabled()) {
@@ -72,12 +73,14 @@ public class SimulationRunner {
             fuente.cargarInformacion();
 
             List<String> lineas = fuente.getLineas();
+            int startIndex = detectStartIndex(lineas);
+            int availableRows = Math.max(0, lineas.size() - startIndex);
             int maxRows = request.getRowsToProcess() > 0
-                    ? Math.min(request.getRowsToProcess(), lineas.size())
-                    : lineas.size();
+                    ? Math.min(request.getRowsToProcess(), availableRows)
+                    : availableRows;
 
             for (int i = 0; i < maxRows; i++) {
-                String linea = lineas.get(i);
+                String linea = lineas.get(startIndex + i);
 
                 if (linea == null || linea.isBlank()) {
                     skippedRows++;
@@ -91,7 +94,8 @@ public class SimulationRunner {
                         continue;
                     }
 
-                    device.sendUplink(new ApplicationPayload(linea, deviceRequest.getFPort()));
+                    String payload = payloadMapper.buildPayload(linea, deviceRequest);
+                    device.sendUplink(new ApplicationPayload(payload, deviceRequest.getFPort()));
                 }
 
                 processedRows++;
@@ -157,6 +161,20 @@ public class SimulationRunner {
             }
         }
         return null;
+    }
+
+    private int detectStartIndex(List<String> lineas) {
+        if (lineas == null || lineas.isEmpty()) {
+            return 0;
+        }
+
+        String firstLine = lineas.get(0);
+        if (firstLine != null && firstLine.toLowerCase().contains("lat")
+                && firstLine.toLowerCase().contains("temp")) {
+            return 1;
+        }
+
+        return 0;
     }
 
     private void sleepSilently(int millis) {
