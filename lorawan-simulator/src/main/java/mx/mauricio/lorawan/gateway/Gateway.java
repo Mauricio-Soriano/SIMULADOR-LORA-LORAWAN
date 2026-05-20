@@ -39,10 +39,9 @@ public class Gateway {
     }
 
     public void receiveTcpMessage(String payload, String senderIp, Socket clientSocket) {
-        System.out.printf("[Gateway %s @%.1f,%.1f] Rx TCP payload desde %s%n",
-                gatewayId, x, y, senderIp);
+        System.out.println("[Gateway " + gatewayId + " @" + x + "," + y + "] Rx TCP payload desde " + senderIp);
 
-        this.lastContext = TransportContext.tcp(senderIp, clientSocket);
+        lastContext = TransportContext.tcp(senderIp, clientSocket);
         networkServer.receiveFromGateway(gatewayId, payload, "TCP");
     }
 

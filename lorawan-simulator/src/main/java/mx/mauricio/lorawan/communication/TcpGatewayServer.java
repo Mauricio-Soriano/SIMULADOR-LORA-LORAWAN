@@ -4,8 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
-
+import java.nio.charset.StandardCharsets;
 import mx.mauricio.lorawan.gateway.Gateway;
 
 public class TcpGatewayServer implements Runnable {
@@ -13,7 +12,6 @@ public class TcpGatewayServer implements Runnable {
     private final int port;
     private final Gateway gateway;
     private volatile boolean running = true;
-    private ServerSocket serverSocket;
 
     public TcpGatewayServer(int port, Gateway gateway) {
         this.port = port;
@@ -22,15 +20,13 @@ public class TcpGatewayServer implements Runnable {
 
     @Override
     public void run() {
-        try {
-            serverSocket = new ServerSocket(port);
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("[TCP Server] Gateway escuchando en puerto " + port);
 
             while (running) {
-                try {
-                    Socket clientSocket = serverSocket.accept();
-                    BufferedReader in = new BufferedReader(
-                            new InputStreamReader(clientSocket.getInputStream()));
+                try (Socket clientSocket = serverSocket.accept();
+                     BufferedReader in = new BufferedReader(
+                             new InputStreamReader(clientSocket.getInputStream(), StandardCharsets.UTF_8))) {
 
                     String message = in.readLine();
                     String senderIp = clientSocket.getInetAddress().getHostAddress();
@@ -39,28 +35,18 @@ public class TcpGatewayServer implements Runnable {
                         System.out.println("[TCP Server] Mensaje recibido desde " + senderIp + ": " + message);
                         gateway.receiveTcpMessage(message, senderIp, clientSocket);
                     }
-
-                } catch (SocketException e) {
+                } catch (Exception e) {
                     if (running) {
-                        e.printStackTrace();
+                        System.out.println("[TCP Server] Error atendiendo cliente: " + e.getMessage());
                     }
                 }
             }
         } catch (Exception e) {
-            if (running) {
-                e.printStackTrace();
-            }
+            System.out.println("[TCP Server] Error iniciando servidor: " + e.getMessage());
         }
     }
 
     public void stop() {
         running = false;
-        try {
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }

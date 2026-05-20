@@ -29,33 +29,34 @@ public class WebApp {
                 response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
             }
 
+            response.header("Access-Control-Allow-Origin", "*");
             return "OK";
         });
 
         SimulationController controller = new SimulationController();
 
         path("/api", () -> {
-            path("/simulations", () -> {
-                controller.registerRoutes();
-            });
+            path("/simulations", controller::registerRoutes);
         });
 
         notFound((request, response) -> {
+            response.status(404);
             response.type("application/json");
-            return "{\"success\":false,\"message\":\"Ruta no encontrada.\"}";
+            return JsonUtil.toJson(new ApiMessage(false, "Ruta no encontrada."));
         });
 
-        exception(Exception.class, (exception, request, response) -> {
+        exception(Exception.class, (e, request, response) -> {
             response.status(500);
             response.type("application/json");
-            response.body(JsonUtil.toJson(new ApiMessage(false, "Error interno: " + exception.getMessage())));
-            exception.printStackTrace();
+            response.body(JsonUtil.toJson(new ApiMessage(false, "Error interno: " + e.getMessage())));
+            e.printStackTrace();
         });
 
         init();
         awaitInitialization();
 
         System.out.println("Servidor web iniciado en http://localhost:8080/simulator-dashboard.html");
+        System.out.println("Endpoint POST disponible en http://localhost:8080/api/simulations/run");
     }
 
     public static class ApiMessage {
