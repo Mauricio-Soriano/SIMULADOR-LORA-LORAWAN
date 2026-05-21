@@ -16,7 +16,7 @@ public class WebApp {
         ipAddress("0.0.0.0");
         port(8080);
 
-        staticFiles.location("/public");
+        staticFiles.location("/static");
 
         options("/*", (request, response) -> {
             String accessControlRequestHeaders = request.headers("Access-Control-Request-Headers");
@@ -33,10 +33,12 @@ public class WebApp {
             return "OK";
         });
 
-        SimulationController controller = new SimulationController();
+        SimulationController simulationController = new SimulationController();
+        FileController fileController = new FileController();
 
         path("/api", () -> {
-            path("/simulations", controller::registerRoutes);
+            path("/files", fileController::registerRoutes);
+            path("/simulations", simulationController::registerRoutes);
         });
 
         notFound((request, response) -> {
@@ -56,7 +58,8 @@ public class WebApp {
         awaitInitialization();
 
         System.out.println("Servidor web iniciado en http://localhost:8080/simulator-dashboard.html");
-        System.out.println("Endpoint POST disponible en http://localhost:8080/api/simulations/run");
+        System.out.println("Endpoint POST upload disponible en http://localhost:8080/api/files/upload");
+        System.out.println("Endpoint POST simulación disponible en http://localhost:8080/api/simulations/run");
     }
 
     public static class ApiMessage {

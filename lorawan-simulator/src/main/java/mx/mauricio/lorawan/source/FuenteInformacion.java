@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class FuenteInformacion implements IFuenteVisualizable {
 
@@ -15,8 +14,22 @@ public class FuenteInformacion implements IFuenteVisualizable {
     private List<String> lineas = Collections.emptyList();
 
     public FuenteInformacion(String rutaArchivo) {
-        this.rutaArchivo = Path.of(rutaArchivo);
+        this.rutaArchivo = resolverRuta(rutaArchivo);
         validarFormato();
+    }
+
+    private Path resolverRuta(String rutaOriginal) {
+        Path directa = Path.of(rutaOriginal);
+        if (Files.exists(directa)) {
+            return directa;
+        }
+
+        Path enData = Path.of("data", directa.getFileName().toString());
+        if (Files.exists(enData)) {
+            return enData;
+        }
+
+        return directa;
     }
 
     private void validarFormato() {
@@ -39,40 +52,8 @@ public class FuenteInformacion implements IFuenteVisualizable {
 
     @Override
     public void cargarInformacion() throws IOException {
-        this.lineas = Files.readAllLines(rutaArchivo).stream()
-                .skip(1) // salta encabezado CSV
-                .map(this::normalizarLineaCsv)
-                .filter(linea -> !linea.isBlank())
-                .collect(Collectors.toList());
-
+        this.lineas = Files.readAllLines(rutaArchivo);
         imprimirPreview();
-    }
-
-    private String normalizarLineaCsv(String linea) {
-        String[] cols = linea.split(",", -1);
-
-        if (cols.length == 0) {
-            return "";
-        }
-
-        // Si la fila tiene menos de 13 columnas, completar con vacíos
-        String[] normalizada = new String[13];
-        for (int i = 0; i < normalizada.length; i++) {
-            if (i < cols.length) {
-                normalizada[i] = cols[i].trim();
-            } else {
-                normalizada[i] = "";
-            }
-        }
-
-        // Si una celda viene vacía, reemplazar por 0
-        for (int i = 0; i < normalizada.length; i++) {
-            if (normalizada[i] == null || normalizada[i].isBlank()) {
-                normalizada[i] = "0";
-            }
-        }
-
-        return String.join(",", normalizada);
     }
 
     @Override

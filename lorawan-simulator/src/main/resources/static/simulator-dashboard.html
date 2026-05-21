@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoRaWAN Simulator Dashboard</title>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <style>
+    :root,
+    [data-theme="light"] {
+      --font-body: 'Satoshi', sans-serif;
+      --font-display: 'Satoshi', sans-serif;
+
+      --color-bg: #f7f6f2;
+      --color-surface: #f9f8f5;
+      --color-surface-2: #fbfbf9;
+      --color-border: #d4d1ca;
+      --color-text: #28251d;
+      --color-text-muted: #7a7974;
+      --color-primary: #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-error: #a12c7b;
+
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 10px 24px rgba(0,0,0,0.08);
+    }
+
+    [data-theme="dark"] {
+      --color-bg: #171614;
+      --color-surface: #1c1b19;
+      --color-surface-2: #201f1d;
+      --color-border: #393836;
+      --color-text: #cdccca;
+      --color-text-muted: #97958f;
+      --color-primary: #4f98a3;
+      --color-primary-hover: #227f8b;
+      --color-error: #d163a7;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+      --shadow-md: 0 10px 24px rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-body);
+      background: var(--color-bg);
+      color: var(--color-text);
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .eyebrow {
+      margin: 0 0 0.25rem;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      line-height: 1.1;
+    }
+
+    .topbar p {
+      margin: 0;
+      color: var(--color-text-muted);
+    }
+
+    .theme-toggle {
+      min-width: 44px;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      cursor: pointer;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+      gap: 1.5rem;
+      padding: 1.5rem;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    .wizard-panel,
+    .panel-card,
+    .device-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .wizard-panel {
+      padding: 1.25rem;
+    }
+
+    .panel-card,
+    .device-card {
+      padding: 1rem;
+    }
+
+    .step-indicator {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .step {
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-2);
+      color: var(--color-text-muted);
+      border-radius: 999px;
+      padding: 0.75rem 1rem;
+      min-height: 44px;
+      cursor: pointer;
+    }
+
+    .step.active {
+      background: var(--color-primary);
+      color: #fff;
+      border-color: var(--color-primary);
+    }
+
+    .wizard-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .wizard-inline-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .btn {
+      min-height: 44px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      padding: 0.8rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:disabled,
+    .step:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+      border-color: var(--color-primary);
+    }
+
+    .btn-primary:hover {
+      background: var(--color-primary-hover);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--color-text);
+    }
+
+    .field {
+      display: grid;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .device-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    label {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      padding: 0.75rem 0.9rem;
+    }
+
+    select[multiple] {
+      min-height: 160px;
+    }
+
+    .hint {
+      margin: 0 0 1rem;
+      color: var(--color-text-muted);
+    }
+
+    .error-text {
+      margin: 0;
+      color: var(--color-error);
+      font-size: 0.9rem;
+    }
+
+    .side-panel {
+      display: grid;
+      align-self: start;
+      position: sticky;
+      top: 6.5rem;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      margin-top: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-2);
+      padding: 1rem;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+
+    h2, h3 {
+      margin-top: 0;
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .side-panel {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">LoRaWAN Simulator</p>
+      <h1>Configuración de simulación</h1>
+      <p>Wizard para preparar el payload y ejecutar el backend Java.</p>
+    </div>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">◐</button>
+  </header>
+
+  <main class="app-shell">
+    <section class="wizard-panel">
+      <nav class="step-indicator" aria-label="Pasos de simulación">
+        <button type="button" class="step active" data-step-nav="1">1. Archivo</button>
+        <button type="button" class="step" data-step-nav="2">2. Topología</button>
+        <button type="button" class="step" data-step-nav="3">3. Dispositivos</button>
+        <button type="button" class="step" data-step-nav="4">4. Resultados</button>
+      </nav>
+
+      <section id="step-content"></section>
+
+      <footer class="wizard-actions">
+        <button id="backBtn" type="button" class="btn btn-secondary">Atrás</button>
+        <button id="nextBtn" type="button" class="btn btn-primary">Siguiente</button>
+      </footer>
+    </section>
+
+    <aside class="side-panel">
+      <div class="panel-card">
+        <h2>Vista previa</h2>
+        <div id="sidePanelContent"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="./js/simulator-dashboard.js" defer></script>
+</body>
+</html>

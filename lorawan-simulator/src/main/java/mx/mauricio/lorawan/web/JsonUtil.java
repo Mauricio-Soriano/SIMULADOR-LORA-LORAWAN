@@ -1,29 +1,16 @@
 package mx.mauricio.lorawan.web;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
 
 public class JsonUtil {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final Gson GSON = new Gson();
 
-    private JsonUtil() {
-    }
-
-    public static String toJson(Object object) {
-        try {
-            return MAPPER.writeValueAsString(object);
-        } catch (Exception e) {
-            throw new RuntimeException("Error convirtiendo a JSON", e);
-        }
+    public static String toJson(Object obj) {
+        return GSON.toJson(obj);
     }
 
     public static <T> T fromJson(String json, Class<T> clazz) {
-        try {
-            return MAPPER.readValue(json, clazz);
-        } catch (Exception e) {
-            throw new RuntimeException("Error leyendo JSON", e);
-        }
+        return GSON.fromJson(json, clazz);
     }
 }
