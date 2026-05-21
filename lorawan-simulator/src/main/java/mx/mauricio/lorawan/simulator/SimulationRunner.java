@@ -5,6 +5,7 @@ import java.util.List;
 
 import mx.mauricio.lorawan.communication.TcpGatewayServer;
 import mx.mauricio.lorawan.communication.UdpGatewayServer;
+import mx.mauricio.lorawan.config.LoRaConfig;
 import mx.mauricio.lorawan.device.Device;
 import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.gateway.Gateway;
@@ -24,11 +25,11 @@ public class SimulationRunner {
         GatewayRequest gwRequest = request.getGateway();
 
         Gateway gateway = new Gateway(
-                gwRequest.getGatewayId(),
-                networkServer,
-                gwRequest.getX(),
-                gwRequest.getY(),
-                gwRequest.getMaxTxPowerDBm()
+            gwRequest.getGatewayId(),
+            networkServer,
+            gwRequest.getX(),
+            gwRequest.getY(),
+            gwRequest.getMaxTxPowerDBm()
         );
 
         networkServer.registerGateway(gateway);
@@ -54,10 +55,17 @@ public class SimulationRunner {
                 continue;
             }
 
+            LoRaConfig config = deviceRequest.getConfig();
+            if (config == null) {
+                throw new IllegalArgumentException(
+                    "El dispositivo " + deviceRequest.getDeviceId() + " no tiene un LoRaConfig válido."
+                );
+            }
+
             Device device = new Device(
-                    deviceRequest.getDeviceId(),
-                    gateway,
-                    deviceRequest.getConfig()
+                deviceRequest.getDeviceId(),
+                gateway,
+                config
             );
 
             devices.add(device);
@@ -76,8 +84,8 @@ public class SimulationRunner {
             int startIndex = detectStartIndex(lineas);
             int availableRows = Math.max(0, lineas.size() - startIndex);
             int maxRows = request.getRowsToProcess() > 0
-                    ? Math.min(request.getRowsToProcess(), availableRows)
-                    : availableRows;
+                ? Math.min(request.getRowsToProcess(), availableRows)
+                : availableRows;
 
             for (int i = 0; i < maxRows; i++) {
                 String linea = lineas.get(startIndex + i);
@@ -103,22 +111,22 @@ public class SimulationRunner {
             }
 
             return new SimulationResult(
-                    true,
-                    processedRows,
-                    skippedRows,
-                    devices.size(),
-                    "Simulación ejecutada correctamente."
+                true,
+                processedRows,
+                skippedRows,
+                devices.size(),
+                "Simulación ejecutada correctamente."
             );
 
         } catch (Exception e) {
             e.printStackTrace();
 
             return new SimulationResult(
-                    false,
-                    processedRows,
-                    skippedRows,
-                    devices.size(),
-                    "Error durante la simulación: " + e.getMessage()
+                false,
+                processedRows,
+                skippedRows,
+                devices.size(),
+                "Error durante la simulación: " + e.getMessage()
             );
 
         } finally {
@@ -170,7 +178,7 @@ public class SimulationRunner {
 
         String firstLine = lineas.get(0);
         if (firstLine != null && firstLine.toLowerCase().contains("lat")
-                && firstLine.toLowerCase().contains("temp")) {
+            && firstLine.toLowerCase().contains("temp")) {
             return 1;
         }
 
