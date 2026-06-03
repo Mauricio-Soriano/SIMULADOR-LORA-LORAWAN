@@ -16,6 +16,7 @@ public class FileController {
     private static final Path UPLOAD_DIR = Path.of("data", "uploads");
 
     public void registerRoutes() {
+
         after("/*", (request, response) -> {
             response.header("Access-Control-Allow-Origin", "*");
             response.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -44,7 +45,9 @@ public class FileController {
                 return JsonUtil.toJson(new UploadResponse(false, null, "Nombre de archivo inválido."));
             }
 
-            String safeName = Path.of(submittedName).getFileName().toString()
+            String safeName = Path.of(submittedName)
+                .getFileName()
+                .toString()
                 .replaceAll("[^a-zA-Z0-9._-]", "_");
 
             Path destination = UPLOAD_DIR.resolve(System.currentTimeMillis() + "_" + safeName);
@@ -55,8 +58,10 @@ public class FileController {
                 filePart.delete();
             }
 
+            String normalizedPath = destination.toString().replace("\\", "/");
+
             return JsonUtil.toJson(
-                new UploadResponse(true, destination.toString().replace("\\", "/"), "Archivo cargado correctamente.")
+                new UploadResponse(true, normalizedPath, "Archivo cargado correctamente.")
             );
         });
     }
@@ -66,7 +71,8 @@ public class FileController {
         private String path;
         private String message;
 
-        public UploadResponse() {}
+        public UploadResponse() {
+        }
 
         public UploadResponse(boolean success, String path, String message) {
             this.success = success;
@@ -74,13 +80,28 @@ public class FileController {
             this.message = message;
         }
 
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
+        public boolean isSuccess() {
+            return success;
+        }
 
-        public String getPath() { return path; }
-        public void setPath(String path) { this.path = path; }
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
 
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
+        public String getPath() {
+            return path;
+        }
+
+        public void setPath(String path) {
+            this.path = path;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
     }
 }
