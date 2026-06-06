@@ -320,19 +320,19 @@
 
   <main class="app-shell">
     <section class="wizard-panel">
-      <nav class="step-indicator" aria-label="Pasos de simulación">
-        <button type="button" class="step active" data-step-nav="1">1. Archivo</button>
-        <button type="button" class="step" data-step-nav="2">2. Topología</button>
-        <button type="button" class="step" data-step-nav="3">3. Dispositivos</button>
-        <button type="button" class="step" data-step-nav="4">4. Resultados</button>
-      </nav>
+          <div class="step-indicator">
+            <button type="button" class="step" data-go-step="1">1. Archivo</button>
+            <button type="button" class="step" data-go-step="2">2. Topología</button>
+            <button type="button" class="step" data-go-step="3">3. Dispositivos</button>
+            <button type="button" class="step" data-go-step="4">4. Resultados</button>
+          </div>
 
       <section id="step-content"></section>
 
-      <footer class="wizard-actions">
-        <button id="backBtn" type="button" class="btn btn-secondary">Atrás</button>
-        <button id="nextBtn" type="button" class="btn btn-primary">Siguiente</button>
-      </footer>
+        <div class="wizard-actions">
+          <button type="button" id="prev-step-btn" class="btn btn-secondary">Atrás</button>
+          <button type="button" id="next-step-btn" class="btn btn-primary">Siguiente</button>
+        </div>
     </section>
 
     <aside class="side-panel">

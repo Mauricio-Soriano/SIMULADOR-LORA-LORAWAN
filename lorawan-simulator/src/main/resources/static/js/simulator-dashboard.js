@@ -1,4 +1,4 @@
-console.log("simulator-dashboard.js cargado");
+console.log("simulator-dashboard.js limpio cargado");
 
 const state = {
   currentStep: 1,
@@ -7,6 +7,7 @@ const state = {
     inputPath: "",
     uploadedPath: "",
     fileName: "",
+    fileToken: "",
     delimiter: ",",
     hasHeader: true,
     columns: [],
@@ -24,12 +25,6 @@ const state = {
       udpPort: 5000,
       tcpPort: 6000
     },
-    layout: {
-      mode: "linear",
-      baseX: 10,
-      baseY: 20,
-      distanceMeters: 18
-    },
     deviceCount: 2
   },
   devices: [],
@@ -45,35 +40,6 @@ function normalizeSlashes(value) {
   return String(value || "").trim().replace(/\\/g, "/");
 }
 
-function hasExplicitPath(value) {
-  const v = normalizeSlashes(value);
-  return v.includes("/") || /^[A-Za-z]:/.test(v);
-}
-
-function resolveInputFilePath(rawValue, selectedFile, uploadedPath) {
-  const uploaded = normalizeSlashes(uploadedPath);
-  if (uploaded) return uploaded;
-
-  const typedValue = normalizeSlashes(rawValue);
-  if (typedValue) {
-    return hasExplicitPath(typedValue) ? typedValue : `data/${typedValue}`;
-  }
-
-  if (selectedFile?.name) {
-    return `data/${selectedFile.name}`;
-  }
-
-  return "";
-}
-
-function getResolvedInputFile() {
-  return resolveInputFilePath(
-    state.file.inputPath,
-    state.file.rawFile,
-    state.file.uploadedPath
-  );
-}
-
 function isSupportedFile(name) {
   return /\.(csv|txt)$/i.test(name || "");
 }
@@ -83,8 +49,47 @@ function escapeHtml(value) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getAllowedTransports(deviceClass) {
+  if (deviceClass === "US915_CLASS_A") return ["UDP"];
+  if (deviceClass === "US915_CLASS_B" || deviceClass === "US915_CLASS_C") return ["TCP"];
+  return ["UDP", "TCP"];
+}
+
+function normalizeTransportForClass(device) {
+  const allowed = getAllowedTransports(device.config);
+  if (!allowed.includes(device.transport)) {
+    device.transport = allowed[0];
+  }
+}
+
+function buildDevices(count, existing = []) {
+  return Array.from({ length: count }, (_, index) => {
+    const current = existing[index];
+    const device = current || {
+      deviceId: `device-${index + 1}`,
+      config: index === 0 ? "US915_CLASS_A" : "US915_CLASS_B",
+      transport: index === 0 ? "UDP" : "TCP",
+      fPort: index + 1,
+      columnIndexes: []
+    };
+    normalizeTransportForClass(device);
+    return device;
+  });
+}
+
+function ensureDevices() {
+  state.devices = buildDevices(Number(state.topology.deviceCount || 0), state.devices);
+}
+
+function getResolvedInputFile() {
+  if (state.file.uploadedPath) return state.file.uploadedPath;
+  if (state.file.inputPath) return normalizeSlashes(state.file.inputPath);
+  if (state.file.rawFile?.name) return state.file.rawFile.name;
+  return "";
 }
 
 function onFileSelected(event) {
@@ -94,7 +99,12 @@ function onFileSelected(event) {
   state.file.rawFile = file;
   state.file.fileName = file.name;
   state.file.uploadedPath = "";
+  state.file.fileToken = "";
   state.file.inputPath = file.name;
+  state.file.columns = [];
+  state.file.previewRows = [];
+  state.file.rowCountEstimate = 0;
+  state.result = null;
   state.ui.uploadMessage = "";
 
   if (!isSupportedFile(file.name)) {
@@ -119,6 +129,7 @@ async function uploadSelectedFile() {
   formData.append("file", state.file.rawFile);
 
   state.ui.uploadMessage = "Subiendo archivo...";
+  state.errors = {};
   render();
 
   const response = await fetch("/api/files/upload", {
@@ -127,123 +138,25 @@ async function uploadSelectedFile() {
   });
 
   const result = await response.json();
+  console.log("Respuesta upload:", result);
 
   if (!response.ok || !result.success) {
     throw new Error(result.message || "No se pudo subir el archivo.");
   }
 
-  state.file.uploadedPath = normalizeSlashes(result.path);
+  state.file.fileToken = String(result.fileToken || "").trim();
+  state.file.uploadedPath = normalizeSlashes(result.path || "");
   state.file.inputPath = state.file.uploadedPath;
   state.file.fileName = state.file.rawFile.name;
   state.ui.uploadMessage = `Archivo cargado: ${state.file.uploadedPath}`;
 
-  render();
-  return state.file.uploadedPath;
-}
-
-function buildSimulationPayload() {
-  const inputFile = getResolvedInputFile();
-
-  return {
-    inputFile,
-    rowsToProcess: Number(state.topology.rowsToProcess),
-    sendIntervalMs: Number(state.topology.sendIntervalMs),
-    gateway: {
-      gatewayId: state.topology.gateway.gatewayId,
-      x: Number(state.topology.gateway.x),
-      y: Number(state.topology.gateway.y),
-      maxTxPowerDBm: Number(state.topology.gateway.maxTxPowerDBm),
-      udpPort: Number(state.topology.gateway.udpPort),
-      tcpPort: Number(state.topology.gateway.tcpPort)
-    },
-    devices: state.devices.map(device => ({
-      deviceId: device.deviceId,
-      config: device.config,
-      fPort: Number(device.fPort),
-      x: 0,
-      y: 0,
-      enabled: true,
-      columnIndexes: [...device.columnIndexes]
-    }))
-  };
-}
-
-function validateFileStep() {
-  const errors = {};
-  const resolved = getResolvedInputFile();
-
-  if (!resolved) {
-    errors.inputFile = "Selecciona un archivo o escribe una ruta válida.";
-  }
-
-  if (state.file.rawFile && !isSupportedFile(state.file.rawFile.name)) {
-    errors.inputFile = "Solo se permiten archivos .csv o .txt";
-  }
-
-  return errors;
-}
-
-function buildDevices(count, existing = []) {
-  return Array.from({ length: count }, (_, index) => {
-    const current = existing[index];
-    return current || {
-      deviceId: `device-${index + 1}`,
-      config: "US915_CLASS_A",
-      transport: index % 2 === 0 ? "UDP" : "TCP",
-      fPort: index + 1,
-      columnIndexes: []
+  if (!state.file.fileToken) {
+    state.errors = {
+      inputFile: "El backend subió el archivo, pero no devolvió fileToken."
     };
-  });
-}
-
-function validateTopologyStep() {
-  const errors = {};
-
-  if (Number(state.topology.rowsToProcess) <= 0) {
-    errors.rowsToProcess = "Debe ser mayor que 0.";
   }
 
-  if (Number(state.topology.sendIntervalMs) < 0) {
-    errors.sendIntervalMs = "No puede ser negativo.";
-  }
-
-  if (!String(state.topology.gateway.gatewayId || "").trim()) {
-    errors.gatewayId = "Gateway ID obligatorio.";
-  }
-
-  if (Number(state.topology.gateway.udpPort) <= 0) {
-    errors.udpPort = "Puerto UDP inválido.";
-  }
-
-  if (Number(state.topology.gateway.tcpPort) <= 0) {
-    errors.tcpPort = "Puerto TCP inválido.";
-  }
-
-  if (Number(state.topology.deviceCount) <= 0) {
-    errors.deviceCount = "Debe haber al menos 1 dispositivo.";
-  }
-
-  return errors;
-}
-
-function validateDevicesStep() {
-  const errors = {};
-
-  state.devices.forEach((device, index) => {
-    if (!String(device.deviceId || "").trim()) {
-      errors[`deviceId_${index}`] = "ID obligatorio.";
-    }
-
-    if (!String(device.config || "").trim()) {
-      errors[`config_${index}`] = "Config obligatoria.";
-    }
-
-    if (Number(device.fPort) <= 0) {
-      errors[`fPort_${index}`] = "FPort inválido.";
-    }
-  });
-
-  return errors;
+  render();
 }
 
 function analyzeLocalFile() {
@@ -265,24 +178,113 @@ function analyzeLocalFile() {
       index: i,
       name: state.file.hasHeader && rows[0]?.[i] ? rows[0][i] : `col_${i + 1}`
     }));
-
     state.file.previewRows = state.file.hasHeader ? rows.slice(1) : rows;
     state.file.rowCountEstimate = lines.length;
     state.errors = {};
     state.ui.uploadMessage = `Vista previa cargada (${lines.length} filas estimadas).`;
+
     render();
   };
 
   reader.readAsText(state.file.rawFile);
 }
 
+function validateFileStep() {
+  const errors = {};
+  if (!getResolvedInputFile()) {
+    errors.inputFile = "Selecciona un archivo o escribe una ruta válida.";
+  }
+  if (state.file.rawFile && !isSupportedFile(state.file.rawFile.name)) {
+    errors.inputFile = "Solo se permiten archivos .csv o .txt";
+  }
+  return errors;
+}
+
+function validateTopologyStep() {
+  const errors = {};
+  if (Number(state.topology.rowsToProcess) <= 0) errors.rowsToProcess = "Debe ser mayor que 0.";
+  if (Number(state.topology.sendIntervalMs) < 0) errors.sendIntervalMs = "No puede ser negativo.";
+  if (!String(state.topology.gateway.gatewayId || "").trim()) errors.gatewayId = "Gateway ID obligatorio.";
+  if (Number(state.topology.gateway.udpPort) <= 0) errors.udpPort = "Puerto UDP inválido.";
+  if (Number(state.topology.gateway.tcpPort) <= 0) errors.tcpPort = "Puerto TCP inválido.";
+  if (Number(state.topology.deviceCount) <= 0) errors.deviceCount = "Debe haber al menos 1 dispositivo.";
+  return errors;
+}
+
+function validateDevicesStep() {
+  const errors = {};
+  state.devices.forEach((device, index) => {
+    if (!String(device.deviceId || "").trim()) errors[`deviceId_${index}`] = "ID obligatorio.";
+    if (!String(device.config || "").trim()) errors[`config_${index}`] = "Config obligatoria.";
+    if (Number(device.fPort) <= 0) errors[`fPort_${index}`] = "FPort inválido.";
+    if (!Array.isArray(device.columnIndexes) || device.columnIndexes.length === 0) {
+      errors[`columns_${index}`] = "Selecciona al menos una columna.";
+    }
+    const allowed = getAllowedTransports(device.config);
+    if (!allowed.includes(device.transport)) {
+      errors[`transport_${index}`] = `La configuración ${device.config} solo permite ${allowed.join(", ")}.`;
+    }
+  });
+  return errors;
+}
+
+function buildSimulationPayload() {
+  return {
+    fileToken: state.file.fileToken,
+    delimiter: state.file.delimiter,
+    hasHeader: state.file.hasHeader,
+    simulation: {
+      rowsToProcess: Number(state.topology.rowsToProcess),
+      sendIntervalMs: Number(state.topology.sendIntervalMs)
+    },
+    gateway: {
+      gatewayId: state.topology.gateway.gatewayId,
+      x: Number(state.topology.gateway.x),
+      y: Number(state.topology.gateway.y),
+      maxTxPowerDBm: Number(state.topology.gateway.maxTxPowerDBm),
+      udpPort: Number(state.topology.gateway.udpPort),
+      tcpPort: Number(state.topology.gateway.tcpPort)
+    },
+    devices: state.devices.map(device => ({
+      deviceId: device.deviceId,
+      deviceClass: device.config,
+      transport: device.transport,
+      fPort: Number(device.fPort),
+      enabled: true,
+      columnIndexes: [...device.columnIndexes]
+    }))
+  };
+}
+
+function renderStepPills() {
+  const steps = [
+    { n: 1, label: "Archivo" },
+    { n: 2, label: "Topología" },
+    { n: 3, label: "Dispositivos" },
+    { n: 4, label: "Resultados" }
+  ];
+
+  return `
+    <div class="step-pills">
+      ${steps.map(step => `
+        <button
+          type="button"
+          class="step-pill ${state.currentStep === step.n ? "active" : ""}"
+          data-go-step="${step.n}">
+          ${step.n}. ${step.label}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderPreviewTable() {
   if (!state.file.previewRows.length || !state.file.columns.length) {
-    return `<p class="muted-text">Sin vista previa todavía.</p>`;
+    return `<p>Sin vista previa todavía.</p>`;
   }
 
   return `
-    <div class="preview-table-wrap">
+    <div class="table-wrap">
       <table class="preview-table">
         <thead>
           <tr>
@@ -290,9 +292,9 @@ function renderPreviewTable() {
           </tr>
         </thead>
         <tbody>
-          ${state.file.previewRows.slice(0, 5).map(row => `
+          ${state.file.previewRows.map(row => `
             <tr>
-              ${state.file.columns.map((_, i) => `<td>${escapeHtml(row[i] ?? "")}</td>`).join("")}
+              ${state.file.columns.map((col, i) => `<td>${escapeHtml(row[i] ?? "")}</td>`).join("")}
             </tr>
           `).join("")}
         </tbody>
@@ -301,216 +303,184 @@ function renderPreviewTable() {
   `;
 }
 
+function renderColumnSelector(device, deviceIndex) {
+  if (!state.file.columns.length) {
+    return `<p class="muted">Primero analiza un archivo para habilitar columnas.</p>`;
+  }
+
+  return `
+    <div class="columns-grid">
+      ${state.file.columns.map(col => `
+        <label class="column-item">
+          <input
+            type="checkbox"
+            class="column-checkbox"
+            data-device-index="${deviceIndex}"
+            data-column-index="${col.index}"
+            ${device.columnIndexes.includes(col.index) ? "checked" : ""}>
+          <span>${escapeHtml(col.name)}</span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderFileSummary() {
+  return `
+    <div class="card">
+      <p><strong>Archivo:</strong> ${escapeHtml(state.file.fileName || "-")}</p>
+      <p><strong>Ruta resuelta:</strong> ${escapeHtml(getResolvedInputFile() || "-")}</p>
+      <p><strong>File token:</strong> ${escapeHtml(state.file.fileToken || "-")}</p>
+      <p><strong>Estado:</strong> ${escapeHtml(state.ui.uploadMessage || "Sin analizar")}</p>
+      <p><strong>Filas estimadas:</strong> ${state.file.rowCountEstimate || 0}</p>
+      ${renderPreviewTable()}
+    </div>
+  `;
+}
+
 function renderFileStep() {
   return `
-    <section class="wizard-step">
+    <section class="step-panel">
       <h2>Archivo de entrada</h2>
-      <p>Selecciona o escribe el archivo para la simulación.</p>
+      <p>Selecciona un archivo CSV/TXT, visualízalo y súbelo antes de continuar.</p>
 
-      <div class="field">
-        <label for="inputPath">Ruta o nombre de archivo</label>
-        <input id="inputPath" type="text" value="${escapeHtml(state.file.inputPath)}" placeholder="t5.csv o data/t5.csv" />
-        ${state.errors.inputFile ? `<p class="error-text">${escapeHtml(state.errors.inputFile)}</p>` : ""}
+      <div class="field-group">
+        <label for="input-file">Archivo local</label>
+        <input id="input-file" type="file" accept=".csv,.txt" />
+      </div>
+
+      <div class="field-group">
+        <label for="input-path">Nombre o ruta</label>
+        <input id="input-path" type="text" value="${escapeHtml(state.file.inputPath)}" placeholder="archivo.csv o data/archivo.csv" />
+      </div>
+
+      <div class="field-group">
+        <label for="delimiter">Delimitador</label>
+        <input id="delimiter" type="text" value="${escapeHtml(state.file.delimiter)}" maxlength="1" />
       </div>
 
       <div class="field">
-        <label for="fileInput">Archivo local</label>
-        <input id="fileInput" type="file" accept=".csv,.txt" />
+        <label for="has-header-select">¿El archivo tiene encabezado?</label>
+        <select id="has-header-select">
+          <option value="true" ${state.file.hasHeader ? "selected" : ""}>Sí</option>
+          <option value="false" ${!state.file.hasHeader ? "selected" : ""}>No</option>
+        </select>
       </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label for="delimiter">Separador</label>
-          <input id="delimiter" type="text" maxlength="1" value="${escapeHtml(state.file.delimiter)}" />
-        </div>
+      ${state.errors.inputFile ? `<div class="field-error">${escapeHtml(state.errors.inputFile)}</div>` : ""}
 
-        <div class="field">
-          <label for="hasHeader">Encabezados</label>
-          <select id="hasHeader">
-            <option value="true" ${state.file.hasHeader ? "selected" : ""}>Sí</option>
-            <option value="false" ${!state.file.hasHeader ? "selected" : ""}>No</option>
-          </select>
-        </div>
+      <div class="button-row">
+        <button type="button" class="btn btn-secondary" id="analyze-file-btn">Analizar archivo</button>
+        <button type="button" class="btn btn-primary" id="upload-file-btn">Subir archivo</button>
       </div>
 
-      <div class="actions-row">
-        <button id="analyzeBtn" type="button" class="primary-action">Analizar archivo</button>
-      </div>
+      ${renderFileSummary()}
     </section>
   `;
 }
 
 function renderTopologyStep() {
   return `
-    <section class="wizard-step">
-      <h2>Topología</h2>
-      <p>Configura la simulación, el gateway y la cantidad de dispositivos.</p>
+    <section class="step-panel">
+      <h2>Topología y simulación</h2>
+      <p>Configura filas a procesar, intervalo de envío y parámetros del gateway.</p>
 
-      <div class="field-row">
-        <div class="field">
-          <label for="rowsToProcess">Filas a procesar</label>
-          <input id="rowsToProcess" type="number" min="1" value="${state.topology.rowsToProcess}" />
-          ${state.errors.rowsToProcess ? `<p class="error-text">${escapeHtml(state.errors.rowsToProcess)}</p>` : ""}
+      <div class="grid two-col">
+        <div class="field-group">
+          <label for="rows-to-process">Filas a procesar</label>
+          <input id="rows-to-process" type="number" min="1" value="${state.topology.rowsToProcess}" />
         </div>
 
-        <div class="field">
-          <label for="sendIntervalMs">Intervalo de envío (ms)</label>
-          <input id="sendIntervalMs" type="number" min="0" value="${state.topology.sendIntervalMs}" />
-          ${state.errors.sendIntervalMs ? `<p class="error-text">${escapeHtml(state.errors.sendIntervalMs)}</p>` : ""}
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="gatewayId">Gateway ID</label>
-          <input id="gatewayId" type="text" value="${escapeHtml(state.topology.gateway.gatewayId)}" />
-          ${state.errors.gatewayId ? `<p class="error-text">${escapeHtml(state.errors.gatewayId)}</p>` : ""}
+        <div class="field-group">
+          <label for="send-interval-ms">Intervalo de envío (ms)</label>
+          <input id="send-interval-ms" type="number" min="0" value="${state.topology.sendIntervalMs}" />
         </div>
 
-        <div class="field">
-          <label for="deviceCount">Cantidad de dispositivos</label>
-          <input id="deviceCount" type="number" min="1" value="${state.topology.deviceCount}" />
-          ${state.errors.deviceCount ? `<p class="error-text">${escapeHtml(state.errors.deviceCount)}</p>` : ""}
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="gatewayX">Gateway X</label>
-          <input id="gatewayX" type="number" value="${state.topology.gateway.x}" />
+        <div class="field-group">
+          <label for="gateway-id">Gateway ID</label>
+          <input id="gateway-id" type="text" value="${escapeHtml(state.topology.gateway.gatewayId)}" />
         </div>
 
-        <div class="field">
-          <label for="gatewayY">Gateway Y</label>
-          <input id="gatewayY" type="number" value="${state.topology.gateway.y}" />
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="maxTxPowerDBm">Max TX Power (dBm)</label>
-          <input id="maxTxPowerDBm" type="number" value="${state.topology.gateway.maxTxPowerDBm}" />
+        <div class="field-group">
+          <label for="device-count">Número de dispositivos</label>
+          <input id="device-count" type="number" min="1" value="${state.topology.deviceCount}" />
         </div>
 
-        <div class="field">
-          <label for="layoutMode">Layout</label>
-          <select id="layoutMode">
-            <option value="linear" ${state.topology.layout.mode === "linear" ? "selected" : ""}>Linear</option>
-            <option value="grid" ${state.topology.layout.mode === "grid" ? "selected" : ""}>Grid</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="baseX">Base X</label>
-          <input id="baseX" type="number" value="${state.topology.layout.baseX}" />
+        <div class="field-group">
+          <label for="gateway-x">Gateway X</label>
+          <input id="gateway-x" type="number" value="${state.topology.gateway.x}" />
         </div>
 
-        <div class="field">
-          <label for="baseY">Base Y</label>
-          <input id="baseY" type="number" value="${state.topology.layout.baseY}" />
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label for="distanceMeters">Distancia entre nodos (m)</label>
-          <input id="distanceMeters" type="number" min="1" value="${state.topology.layout.distanceMeters}" />
+        <div class="field-group">
+          <label for="gateway-y">Gateway Y</label>
+          <input id="gateway-y" type="number" value="${state.topology.gateway.y}" />
         </div>
 
-        <div class="field">
-          <label for="udpPort">UDP Port</label>
-          <input id="udpPort" type="number" min="1" value="${state.topology.gateway.udpPort}" />
-          ${state.errors.udpPort ? `<p class="error-text">${escapeHtml(state.errors.udpPort)}</p>` : ""}
+        <div class="field-group">
+          <label for="gateway-power">Potencia máxima (dBm)</label>
+          <input id="gateway-power" type="number" value="${state.topology.gateway.maxTxPowerDBm}" />
         </div>
-      </div>
 
-      <div class="field">
-        <label for="tcpPort">TCP Port</label>
-        <input id="tcpPort" type="number" min="1" value="${state.topology.gateway.tcpPort}" />
-        ${state.errors.tcpPort ? `<p class="error-text">${escapeHtml(state.errors.tcpPort)}</p>` : ""}
+        <div class="field-group">
+          <label for="udp-port">Puerto UDP</label>
+          <input id="udp-port" type="number" min="1" value="${state.topology.gateway.udpPort}" />
+        </div>
+
+        <div class="field-group">
+          <label for="tcp-port">Puerto TCP</label>
+          <input id="tcp-port" type="number" min="1" value="${state.topology.gateway.tcpPort}" />
+        </div>
       </div>
     </section>
   `;
 }
 
 function renderDevicesStep() {
-  if (!state.devices.length) {
-    state.devices = buildDevices(state.topology.deviceCount);
-  }
+  ensureDevices();
 
   return `
-    <section class="wizard-step">
+    <section class="step-panel">
       <h2>Dispositivos</h2>
       <p>Configura cada dispositivo LoRaWAN antes de ejecutar la simulación.</p>
 
-      <div class="device-list">
+      <div class="devices-stack">
         ${state.devices.map((device, index) => `
           <article class="device-card">
             <h3>Dispositivo ${index + 1}</h3>
 
-            <div class="field-row">
-              <div class="field">
-                <label for="deviceId_${index}">Device ID</label>
-                <input
-                  id="deviceId_${index}"
-                  data-index="${index}"
-                  data-field="deviceId"
-                  type="text"
-                  value="${escapeHtml(device.deviceId)}"
-                />
-                ${state.errors[`deviceId_${index}`] ? `<p class="error-text">${escapeHtml(state.errors[`deviceId_${index}`])}</p>` : ""}
+            <div class="grid two-col">
+              <div class="field-group">
+                <label>ID</label>
+                <input type="text" data-device-field="deviceId" data-index="${index}" value="${escapeHtml(device.deviceId)}" />
               </div>
 
-              <div class="field">
-                <label for="fPort_${index}">FPort</label>
-                <input
-                  id="fPort_${index}"
-                  data-index="${index}"
-                  data-field="fPort"
-                  type="number"
-                  min="1"
-                  value="${device.fPort}"
-                />
-                ${state.errors[`fPort_${index}`] ? `<p class="error-text">${escapeHtml(state.errors[`fPort_${index}`])}</p>` : ""}
+              <div class="field-group">
+                <label>FPort</label>
+                <input type="number" data-device-field="fPort" data-index="${index}" value="${device.fPort}" min="1" />
               </div>
-            </div>
 
-            <div class="field-row">
-              <div class="field">
-                <label for="config_${index}">Configuración LoRa</label>
-                <select id="config_${index}" data-index="${index}" data-field="config">
-                  <option value="US915_CLASS_A" ${device.config === "US915_CLASS_A" ? "selected" : ""}>US915 / CLASS_A</option>
-                  <option value="US915_CLASS_B" ${device.config === "US915_CLASS_B" ? "selected" : ""}>US915 / CLASS_B</option>
-                  <option value="US915_CLASS_C" ${device.config === "US915_CLASS_C" ? "selected" : ""}>US915 / CLASS_C</option>
-                  <option value="EU868_CLASS_A" ${device.config === "EU868_CLASS_A" ? "selected" : ""}>EU868 / CLASS_A</option>
-                  <option value="EU868_CLASS_B" ${device.config === "EU868_CLASS_B" ? "selected" : ""}>EU868 / CLASS_B</option>
-                  <option value="EU868_CLASS_C" ${device.config === "EU868_CLASS_C" ? "selected" : ""}>EU868 / CLASS_C</option>
-                  <option value="AS923_CLASS_A" ${device.config === "AS923_CLASS_A" ? "selected" : ""}>AS923 / CLASS_A</option>
+              <div class="field-group">
+                <label>Clase / Config</label>
+                <select data-device-field="config" data-index="${index}">
+                  ${["US915_CLASS_A", "US915_CLASS_B", "US915_CLASS_C"].map(option => `
+                    <option value="${option}" ${device.config === option ? "selected" : ""}>${option}</option>
+                  `).join("")}
                 </select>
-                ${state.errors[`config_${index}`] ? `<p class="error-text">${escapeHtml(state.errors[`config_${index}`])}</p>` : ""}
               </div>
 
-              <div class="field">
-                <label for="transport_${index}">Transporte</label>
-                <select id="transport_${index}" data-index="${index}" data-field="transport">
-                  <option value="UDP" ${device.transport === "UDP" ? "selected" : ""}>UDP</option>
-                  <option value="TCP" ${device.transport === "TCP" ? "selected" : ""}>TCP</option>
+              <div class="field-group">
+                <label>Transporte</label>
+                <select data-device-field="transport" data-index="${index}">
+                  ${getAllowedTransports(device.config).map(option => `
+                    <option value="${option}" ${device.transport === option ? "selected" : ""}>${option}</option>
+                  `).join("")}
                 </select>
               </div>
             </div>
 
-            <div class="field">
-              <label for="columns_${index}">Columnas del payload</label>
-              <input
-                id="columns_${index}"
-                data-index="${index}"
-                data-field="columns"
-                type="text"
-                value="${escapeHtml((device.columnIndexes || []).join(","))}"
-                placeholder="0,1,2"
-              />
+            <div class="field-group">
+              <label>Columnas para payload</label>
+              ${renderColumnSelector(device, index)}
             </div>
           </article>
         `).join("")}
@@ -519,310 +489,158 @@ function renderDevicesStep() {
   `;
 }
 
-function renderResultsStep() {
-  const payload = buildSimulationPayload();
+function renderEvents() {
+  if (!state.result?.events?.length) {
+    return `<p>Sin eventos todavía.</p>`;
+  }
 
   return `
-    <section class="wizard-step">
-      <h2>Resultados</h2>
-      <p>Revisa el resumen y ejecuta la simulación del backend Java.</p>
-
-      <div class="results-grid">
-        <article class="summary-card">
-          <h3>Resumen</h3>
-          <ul class="summary-list">
-            <li><strong>Archivo:</strong> ${escapeHtml(payload.inputFile || "-")}</li>
-            <li><strong>Filas a procesar:</strong> ${payload.rowsToProcess}</li>
-            <li><strong>Intervalo:</strong> ${payload.sendIntervalMs} ms</li>
-            <li><strong>Gateway:</strong> ${escapeHtml(payload.gateway.gatewayId)}</li>
-            <li><strong>UDP:</strong> ${payload.gateway.udpPort}</li>
-            <li><strong>TCP:</strong> ${payload.gateway.tcpPort}</li>
-            <li><strong>Dispositivos:</strong> ${payload.devices.length}</li>
-          </ul>
-        </article>
-
-        <article class="summary-card">
-          <h3>Estado</h3>
-          <p>${state.ui.busy ? "Ejecutando simulación..." : "Listo para ejecutar."}</p>
-          ${state.result ? `
-            <div class="result-box ${state.result.success ? "success" : "error"}">
-              <p><strong>Éxito:</strong> ${state.result.success ? "Sí" : "No"}</p>
-              <p><strong>Procesadas:</strong> ${state.result.rowsProcessed ?? 0}</p>
-              <p><strong>Omitidas:</strong> ${state.result.rowsSkipped ?? 0}</p>
-              <p><strong>Dispositivos:</strong> ${state.result.devicesConfigured ?? payload.devices.length}</p>
-              <p><strong>Mensaje:</strong> ${escapeHtml(state.result.message || "-")}</p>
-            </div>
-          ` : `<p>Aún no hay resultado.</p>`}
-        </article>
-      </div>
-
-      <div class="actions-row">
-        <button id="runSimulationBtn" type="button" class="primary-action" ${state.ui.busy ? "disabled" : ""}>
-          ${state.ui.busy ? "Ejecutando..." : "Ejecutar simulación"}
-        </button>
-      </div>
-
-      <details class="technical-details">
-        <summary>Ver JSON técnico</summary>
-        <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
-      </details>
-    </section>
+    <ul class="events-list">
+      ${state.result.events.map(event => `
+        <li>
+          <strong>${escapeHtml(event.level || "INFO")}</strong> -
+          ${escapeHtml(event.deviceId || "-")} -
+          ${escapeHtml(event.message || "-")}
+        </li>
+      `).join("")}
+    </ul>
   `;
 }
 
-function renderCurrentStep() {
-  if (state.currentStep === 1) return renderFileStep();
-  if (state.currentStep === 2) return renderTopologyStep();
-  if (state.currentStep === 3) return renderDevicesStep();
-  return renderResultsStep();
-}
+function renderResultSummary(payload) {
+  return `
+    <div class="card">
+      <h3>Resumen</h3>
+      <ul>
+        <li><strong>Archivo:</strong> ${escapeHtml(getResolvedInputFile() || "-")}</li>
+        <li><strong>File token:</strong> ${escapeHtml(state.file.fileToken || "-")}</li>
+        <li><strong>Filas a procesar:</strong> ${payload.simulation.rowsToProcess}</li>
+        <li><strong>Intervalo:</strong> ${payload.simulation.sendIntervalMs} ms</li>
+        <li><strong>Gateway:</strong> ${escapeHtml(payload.gateway.gatewayId)}</li>
+        <li><strong>UDP:</strong> ${payload.gateway.udpPort}</li>
+        <li><strong>TCP:</strong> ${payload.gateway.tcpPort}</li>
+        <li><strong>Dispositivos:</strong> ${payload.devices.length}</li>
+      </ul>
 
-function updateStepTabs() {
-  document.querySelectorAll("[data-step-nav]").forEach(tab => {
-    const step = Number(tab.dataset.stepNav);
-    tab.classList.toggle("active", step === state.currentStep);
-  });
-}
+      <h3>Estado</h3>
+      <p>${state.ui.busy ? "Ejecutando simulación..." : "Listo para ejecutar."}</p>
 
-function updateButtons() {
-  const backBtn = document.getElementById("backBtn");
-  const nextBtn = document.getElementById("nextBtn");
-
-  if (backBtn) {
-    backBtn.disabled = state.currentStep === 1 || state.ui.busy;
-  }
-
-  if (nextBtn) {
-    nextBtn.textContent = state.currentStep === 4 ? "Finalizado" : "Siguiente";
-    nextBtn.disabled = state.currentStep === 4 || state.ui.busy;
-  }
-}
-
-function renderSidePanel() {
-  const sidePanelContent = document.getElementById("sidePanelContent");
-  if (!sidePanelContent) return;
-
-  sidePanelContent.innerHTML = `
-    <div class="preview-card">
-      <h3>Vista previa</h3>
-      <p><strong>Paso actual:</strong> ${state.currentStep}</p>
-      <p><strong>Archivo:</strong> ${escapeHtml(state.file.fileName || "-")}</p>
-      <p><strong>Ruta resuelta:</strong> ${escapeHtml(getResolvedInputFile() || "-")}</p>
-      <p><strong>Estado:</strong> ${escapeHtml(state.ui.uploadMessage || "Sin analizar")}</p>
-      <p><strong>Filas estimadas:</strong> ${state.file.rowCountEstimate || 0}</p>
-      <p><strong>Dispositivos:</strong> ${state.topology.deviceCount || 0}</p>
-      ${renderPreviewTable()}
+      ${
+        state.result
+          ? `
+            <p><strong>Éxito:</strong> ${state.result.success ? "Sí" : "No"}</p>
+            <p><strong>Mensaje:</strong> ${escapeHtml(state.result.message || "-")}</p>
+          `
+          : `<p>Aún no hay resultado.</p>`
+      }
     </div>
   `;
 }
 
-function bindStepOneEvents() {
-  document.getElementById("inputPath")?.addEventListener("input", e => {
-    state.file.inputPath = e.target.value;
-    renderSidePanel();
-  });
+function renderResultsStep() {
+  const payload = buildSimulationPayload();
 
-  document.getElementById("fileInput")?.addEventListener("change", onFileSelected);
+  return `
+    <section class="step-panel">
+      <h2>Resultados</h2>
+      <p>Revisa el resumen y ejecuta la simulación del backend Java.</p>
 
-  document.getElementById("delimiter")?.addEventListener("input", e => {
-    state.file.delimiter = e.target.value || ",";
-  });
+      ${renderResultSummary(payload)}
 
-  document.getElementById("hasHeader")?.addEventListener("change", e => {
-    state.file.hasHeader = e.target.value === "true";
-  });
+      ${state.errors.inputFile ? `<div class="alert error">${escapeHtml(state.errors.inputFile)}</div>` : ""}
 
-  document.getElementById("analyzeBtn")?.addEventListener("click", analyzeLocalFile);
+      <div class="button-row">
+        <button type="button" class="btn btn-primary" id="run-simulation-btn" ${state.ui.busy ? "disabled" : ""}>
+          ${state.ui.busy ? "Ejecutando..." : "Ejecutar simulación"}
+        </button>
+      </div>
+
+      <details class="technical-json">
+        <summary>Ver JSON técnico</summary>
+        <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+      </details>
+
+      <div class="card">
+        <h3>Eventos</h3>
+        ${renderEvents()}
+      </div>
+    </section>
+  `;
 }
 
-function bindTopologyEvents() {
-  document.getElementById("rowsToProcess")?.addEventListener("input", e => {
-    state.topology.rowsToProcess = Number(e.target.value);
-    renderSidePanel();
+function syncStaticWizardControls() {
+  document.querySelectorAll("[data-go-step]").forEach(button => {
+    const step = Number(button.dataset.goStep);
+    button.classList.toggle("active", step === state.currentStep);
   });
 
-  document.getElementById("sendIntervalMs")?.addEventListener("input", e => {
-    state.topology.sendIntervalMs = Number(e.target.value);
-    renderSidePanel();
-  });
+  const prevBtn = document.getElementById("prev-step-btn");
+  const nextBtn = document.getElementById("next-step-btn");
 
-  document.getElementById("gatewayId")?.addEventListener("input", e => {
-    state.topology.gateway.gatewayId = e.target.value;
-    renderSidePanel();
-  });
-
-  document.getElementById("deviceCount")?.addEventListener("input", e => {
-    const count = Number(e.target.value);
-    state.topology.deviceCount = count;
-    state.devices = buildDevices(count, state.devices);
-    renderSidePanel();
-  });
-
-  document.getElementById("gatewayX")?.addEventListener("input", e => {
-    state.topology.gateway.x = Number(e.target.value);
-  });
-
-  document.getElementById("gatewayY")?.addEventListener("input", e => {
-    state.topology.gateway.y = Number(e.target.value);
-  });
-
-  document.getElementById("maxTxPowerDBm")?.addEventListener("input", e => {
-    state.topology.gateway.maxTxPowerDBm = Number(e.target.value);
-  });
-
-  document.getElementById("layoutMode")?.addEventListener("change", e => {
-    state.topology.layout.mode = e.target.value;
-  });
-
-  document.getElementById("baseX")?.addEventListener("input", e => {
-    state.topology.layout.baseX = Number(e.target.value);
-  });
-
-  document.getElementById("baseY")?.addEventListener("input", e => {
-    state.topology.layout.baseY = Number(e.target.value);
-  });
-
-  document.getElementById("distanceMeters")?.addEventListener("input", e => {
-    state.topology.layout.distanceMeters = Number(e.target.value);
-  });
-
-  document.getElementById("udpPort")?.addEventListener("input", e => {
-    state.topology.gateway.udpPort = Number(e.target.value);
-    renderSidePanel();
-  });
-
-  document.getElementById("tcpPort")?.addEventListener("input", e => {
-    state.topology.gateway.tcpPort = Number(e.target.value);
-    renderSidePanel();
-  });
-}
-
-function bindDevicesEvents() {
-  document.querySelectorAll("[data-field]").forEach(element => {
-    const eventName = element.tagName === "SELECT" ? "change" : "input";
-
-    element.addEventListener(eventName, e => {
-      const index = Number(e.target.dataset.index);
-      const field = e.target.dataset.field;
-
-      if (field === "fPort") {
-        state.devices[index].fPort = Number(e.target.value);
-      } else if (field === "columns") {
-        state.devices[index].columnIndexes = String(e.target.value || "")
-          .split(",")
-          .map(value => value.trim())
-          .filter(Boolean)
-          .map(Number)
-          .filter(value => !Number.isNaN(value));
-      } else {
-        state.devices[index][field] = e.target.value;
-      }
-
-      renderSidePanel();
-    });
-  });
-}
-
-function bindResultsEvents() {
-  document.getElementById("runSimulationBtn")?.addEventListener("click", runSimulation);
-}
-
-function bindStepSpecificEvents() {
-  if (state.currentStep === 1) bindStepOneEvents();
-  if (state.currentStep === 2) bindTopologyEvents();
-  if (state.currentStep === 3) bindDevicesEvents();
-  if (state.currentStep === 4) bindResultsEvents();
-}
-
-function render() {
-  const stepContent = document.getElementById("step-content");
-  if (stepContent) {
-    stepContent.innerHTML = renderCurrentStep();
+  if (prevBtn) {
+    prevBtn.disabled = state.currentStep === 1;
   }
 
-  renderSidePanel();
-  updateStepTabs();
-  updateButtons();
-  bindStepSpecificEvents();
-}
-
-function goBack() {
-  if (state.currentStep > 1 && !state.ui.busy) {
-    state.errors = {};
-    state.currentStep -= 1;
-    render();
-  }
-}
-
-function goNext() {
-  if (state.ui.busy) return;
-
-  if (state.currentStep === 1) {
-    state.errors = validateFileStep();
-    if (Object.keys(state.errors).length > 0) {
-      render();
-      return;
+  if (nextBtn) {
+    if (state.currentStep === 4) {
+      nextBtn.disabled = true;
+      nextBtn.textContent = "Finalizado";
+    } else {
+      nextBtn.disabled = false;
+      nextBtn.textContent = "Siguiente";
     }
   }
-
-  if (state.currentStep === 2) {
-    state.errors = validateTopologyStep();
-    if (Object.keys(state.errors).length > 0) {
-      render();
-      return;
-    }
-    state.devices = buildDevices(state.topology.deviceCount, state.devices);
-  }
-
-  if (state.currentStep === 3) {
-    state.errors = validateDevicesStep();
-    if (Object.keys(state.errors).length > 0) {
-      render();
-      return;
-    }
-  }
-
-  if (state.currentStep < 4) {
-    state.currentStep += 1;
-    render();
-  }
 }
+
 
 async function runSimulation() {
-  try {
-    state.ui.busy = true;
-    state.result = null;
-    state.errors = {};
+  const fileErrors = validateFileStep();
+  const topologyErrors = validateTopologyStep();
+  const deviceErrors = validateDevicesStep();
+
+  state.errors = {
+    ...fileErrors,
+    ...topologyErrors,
+    ...deviceErrors
+  };
+
+  if (Object.keys(state.errors).length > 0) {
     render();
+    return;
+  }
 
-    if (state.file.rawFile && !state.file.uploadedPath) {
-      await uploadSelectedFile();
-    }
+  if (!state.file.fileToken) {
+    state.errors.inputFile = "Debes subir el archivo antes de ejecutar la simulación.";
+    render();
+    return;
+  }
 
-    const payload = buildSimulationPayload();
+  const payload = buildSimulationPayload();
 
-    if (!payload.inputFile) {
-      throw new Error("No hay archivo disponible para la simulación.");
-    }
+  state.ui.busy = true;
+  state.result = null;
+  render();
 
-    const response = await fetch("/api/simulations/run", {
+  try {
+    const response = await fetch("/run", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
     const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Error ejecutando la simulación.");
+    }
+
     state.result = result;
-    state.ui.uploadMessage = payload.inputFile;
+    state.errors = {};
   } catch (error) {
     state.result = {
       success: false,
-      rowsProcessed: 0,
-      rowsSkipped: 0,
-      devicesConfigured: state.devices.length,
-      message: error.message || "Error al ejecutar la simulación."
+      message: error.message || "No se pudo ejecutar la simulación.",
+      events: []
     };
   } finally {
     state.ui.busy = false;
@@ -830,235 +648,168 @@ async function runSimulation() {
   }
 }
 
+function goNext() {
+  if (state.currentStep === 1) {
+    state.errors = validateFileStep();
+    if (Object.keys(state.errors).length) return render();
+  }
+  if (state.currentStep === 2) {
+    state.errors = validateTopologyStep();
+    if (Object.keys(state.errors).length) return render();
+  }
+  if (state.currentStep === 3) {
+    state.errors = validateDevicesStep();
+    if (Object.keys(state.errors).length) return render();
+  }
+
+  state.currentStep = Math.min(4, state.currentStep + 1);
+  render();
+}
+
+function goBack() {
+  state.currentStep = Math.max(1, state.currentStep - 1);
+  render();
+}
+
+function renderSidePreview() {
+  return `
+    <section class="side-panel-card">
+      <h2>Vista previa</h2>
+      <h3>Vista previa</h3>
+      <p><strong>Paso actual:</strong> ${state.currentStep}</p>
+      <p><strong>Archivo:</strong> ${escapeHtml(state.file.fileName || "-")}</p>
+      <p><strong>Ruta resuelta:</strong> ${escapeHtml(getResolvedInputFile() || "-")}</p>
+      <p><strong>File token:</strong> ${escapeHtml(state.file.fileToken || "-")}</p>
+      <p><strong>Estado:</strong> ${escapeHtml(state.ui.uploadMessage || "Sin analizar")}</p>
+      <p><strong>Filas estimadas:</strong> ${state.file.rowCountEstimate || 0}</p>
+      <p><strong>Dispositivos:</strong> ${state.topology.deviceCount || 0}</p>
+      ${renderPreviewTable()}
+    </section>
+  `;
+}
+
+function renderMain() {
+  if (state.currentStep === 1) return renderFileStep();
+  if (state.currentStep === 2) return renderTopologyStep();
+  if (state.currentStep === 3) return renderDevicesStep();
+  return renderResultsStep();
+}
+
 function bindEvents() {
-  const backBtn = document.getElementById("backBtn");
-  const nextBtn = document.getElementById("nextBtn");
+  const root = document.getElementById("step-content");
 
-  backBtn?.addEventListener("click", goBack);
-  nextBtn?.addEventListener("click", goNext);
+  if (root) {
+    root.addEventListener("click", async e => {
+      if (e.target.closest("#analyze-file-btn")) {
+        analyzeLocalFile();
+        return;
+      }
 
-  document.querySelectorAll("[data-step-nav]").forEach(tab => {
-    tab.addEventListener("click", () => {
-      if (state.ui.busy) return;
-      state.currentStep = Number(tab.dataset.stepNav);
+      if (e.target.closest("#upload-file-btn")) {
+        try {
+          await uploadSelectedFile();
+        } catch (error) {
+          state.errors = { ...state.errors, inputFile: error.message || "Error subiendo archivo." };
+          state.ui.uploadMessage = "Error en carga";
+          render();
+        }
+        return;
+      }
+
+      if (e.target.closest("#run-simulation-btn")) {
+        runSimulation();
+        return;
+      }
+    });
+
+    root.addEventListener("change", e => {
+      if (e.target.matches("#input-file")) {
+        onFileSelected(e);
+        return;
+      }
+
+      if (e.target.matches("#has-header")) {
+        state.file.hasHeader = e.target.checked;
+        return;
+      }
+
+      if (e.target.matches("#has-header-select")) {
+        state.file.hasHeader = e.target.value === "true";
+        return;
+      }
+
+      if (e.target.matches("[data-device-field]")) {
+        const index = Number(e.target.dataset.index);
+        const field = e.target.dataset.deviceField;
+        const value = field === "fPort" ? Number(e.target.value) : e.target.value;
+
+        state.devices[index][field] = value;
+
+        if (field === "config") {
+          normalizeTransportForClass(state.devices[index]);
+          render();
+        }
+      }
+    });
+
+    root.addEventListener("input", e => {
+      if (e.target.matches("#input-path")) state.file.inputPath = e.target.value;
+      if (e.target.matches("#delimiter")) state.file.delimiter = e.target.value || ",";
+      if (e.target.matches("#rows-to-process")) state.topology.rowsToProcess = Number(e.target.value);
+      if (e.target.matches("#send-interval-ms")) state.topology.sendIntervalMs = Number(e.target.value);
+      if (e.target.matches("#gateway-id")) state.topology.gateway.gatewayId = e.target.value;
+
+      if (e.target.matches("#device-count")) {
+        state.topology.deviceCount = Number(e.target.value);
+        ensureDevices();
+        render();
+      }
+
+      if (e.target.matches("#gateway-x")) state.topology.gateway.x = Number(e.target.value);
+      if (e.target.matches("#gateway-y")) state.topology.gateway.y = Number(e.target.value);
+      if (e.target.matches("#gateway-power")) state.topology.gateway.maxTxPowerDBm = Number(e.target.value);
+      if (e.target.matches("#udp-port")) state.topology.gateway.udpPort = Number(e.target.value);
+      if (e.target.matches("#tcp-port")) state.topology.gateway.tcpPort = Number(e.target.value);
+    });
+  }
+
+  document.querySelectorAll("[data-go-step]").forEach(button => {
+    button.addEventListener("click", e => {
+      state.currentStep = Number(e.currentTarget.dataset.goStep);
       render();
     });
   });
+
+  const prevBtn = document.getElementById("prev-step-btn");
+  if (prevBtn) {
+    prevBtn.addEventListener("click", goBack);
+  }
+
+  const nextBtn = document.getElementById("next-step-btn");
+  if (nextBtn) {
+    nextBtn.addEventListener("click", goNext);
+  }
 }
 
-function injectWizardStyles() {
-  if (document.getElementById("wizard-enhanced-styles")) return;
+function render() {
+  const stepContent = document.getElementById("step-content");
+  const sidePanelContent = document.getElementById("sidePanelContent");
 
-  const style = document.createElement("style");
-  style.id = "wizard-enhanced-styles";
-  style.textContent = `
-    .wizard-step h2 {
-      margin: 0 0 10px;
-      font-size: 24px;
-      font-weight: 700;
-      color: #1f2937;
-    }
+  if (stepContent) {
+    stepContent.innerHTML = renderMain();
+  }
 
-    .wizard-step p {
-      margin: 0 0 20px;
-      color: #5f6b76;
-    }
+  if (sidePanelContent) {
+    sidePanelContent.innerHTML = renderSidePreview();
+  }
 
-    .field,
-    .device-card,
-    .summary-card {
-      margin-bottom: 16px;
-    }
-
-    .field label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: #334155;
-    }
-
-    .field input,
-    .field select {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #d6d3d1;
-      border-radius: 12px;
-      background: #fff;
-      font-size: 15px;
-      outline: none;
-    }
-
-    .field input:focus,
-    .field select:focus {
-      border-color: #0f766e;
-      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
-    }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .device-list {
-      display: grid;
-      gap: 16px;
-    }
-
-    .device-card,
-    .summary-card,
-    .preview-card {
-      padding: 18px;
-      border: 1px solid #d6d3d1;
-      border-radius: 16px;
-      background: #fff;
-    }
-
-    .device-card h3,
-    .summary-card h3,
-    .preview-card h3 {
-      margin: 0 0 14px;
-      font-size: 18px;
-      color: #1f2937;
-    }
-
-    .results-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .summary-list {
-      margin: 0;
-      padding-left: 18px;
-      color: #334155;
-    }
-
-    .summary-list li {
-      margin-bottom: 8px;
-    }
-
-    .result-box {
-      margin-top: 12px;
-      padding: 14px;
-      border-radius: 12px;
-    }
-
-    .result-box.success {
-      background: #ecfdf5;
-      border: 1px solid #a7f3d0;
-    }
-
-    .result-box.error {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-    }
-
-    .actions-row {
-      display: flex;
-      justify-content: flex-start;
-      margin-bottom: 16px;
-      gap: 12px;
-    }
-
-    .primary-action {
-      padding: 12px 18px;
-      border: none;
-      border-radius: 12px;
-      background: #0f766e;
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .primary-action:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    .technical-details {
-      border: 1px solid #d6d3d1;
-      border-radius: 14px;
-      background: #fafaf9;
-      padding: 12px 14px;
-    }
-
-    .technical-details summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: #334155;
-    }
-
-    .technical-details pre {
-      margin-top: 12px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 13px;
-      color: #334155;
-      max-height: 320px;
-      overflow: auto;
-    }
-
-    .preview-table-wrap {
-      margin-top: 14px;
-      overflow: auto;
-      border: 1px solid #d6d3d1;
-      border-radius: 12px;
-      background: #fff;
-    }
-
-    .preview-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    .preview-table th,
-    .preview-table td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #ece7e2;
-      text-align: left;
-      white-space: nowrap;
-    }
-
-    .preview-table th {
-      background: #fafaf9;
-      color: #374151;
-      font-weight: 700;
-    }
-
-    .error-text {
-      margin-top: 6px;
-      color: #b91c1c;
-      font-size: 13px;
-    }
-
-    .muted-text {
-      color: #6b7280;
-    }
-
-    @media (max-width: 900px) {
-      .field-row,
-      .results-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  `;
-
-  document.head.appendChild(style);
+  syncStaticWizardControls();
 }
 
 function startApp() {
-  console.log("startApp()");
-  injectWizardStyles();
-  state.devices = buildDevices(state.topology.deviceCount, state.devices);
+  ensureDevices();
   bindEvents();
   render();
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", startApp);
-} else {
-  startApp();
-}
+document.addEventListener("DOMContentLoaded", startApp);
