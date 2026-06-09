@@ -3,7 +3,10 @@ package mx.mauricio.lorawan.web.dto;
 import java.util.List;
 
 public class SimulationRunRequest {
-    public String fileToken;
+
+    public String fileToken; // opcional por compatibilidad
+    public String inputFile;
+
     public SimulationConfig simulation;
     public GatewayConfig gateway;
     public LayoutConfig layout;

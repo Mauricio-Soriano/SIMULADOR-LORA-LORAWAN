@@ -146,26 +146,53 @@ function buildSimulationPayload() {
 
   return {
     inputFile,
-    rowsToProcess: Number(state.topology.rowsToProcess),
-    sendIntervalMs: Number(state.topology.sendIntervalMs),
-    gateway: {
-      gatewayId: state.topology.gateway.gatewayId,
-      x: Number(state.topology.gateway.x),
-      y: Number(state.topology.gateway.y),
-      maxTxPowerDBm: Number(state.topology.gateway.maxTxPowerDBm),
-      udpPort: Number(state.topology.gateway.udpPort),
-      tcpPort: Number(state.topology.gateway.tcpPort)
+
+    simulation: {
+        rowsToProcess: Number(state.topology.rowsToProcess),
+        sendIntervalMs: Number(state.topology.sendIntervalMs)
     },
+
+    gateway: {
+        gatewayId: state.topology.gateway.gatewayId,
+        x: Number(state.topology.gateway.x),
+        y: Number(state.topology.gateway.y),
+        maxTxPowerDBm: Number(state.topology.gateway.maxTxPowerDBm),
+        udpPort: Number(state.topology.gateway.udpPort),
+        tcpPort: Number(state.topology.gateway.tcpPort)
+    },
+
+    layout: {
+        mode: state.topology.layout.mode,
+        baseX: Number(state.topology.layout.baseX),
+        baseY: Number(state.topology.layout.baseY),
+        distanceMeters: Number(state.topology.layout.distanceMeters)
+    },
+
     devices: state.devices.map(device => ({
-      deviceId: device.deviceId,
-      config: device.config,
-      fPort: Number(device.fPort),
-      x: 0,
-      y: 0,
-      enabled: true,
-      columnIndexes: [...device.columnIndexes]
+        deviceId: device.deviceId,
+
+        enabled: true,
+
+        transport: device.transport,
+
+        deviceClass: device.config.includes("CLASS_A")
+            ? "CLASS_A"
+            : device.config.includes("CLASS_B")
+                ? "CLASS_B"
+                : "CLASS_C",
+
+        config: device.config,
+
+        fPort: Number(device.fPort),
+
+        columnIndexes: [...device.columnIndexes],
+
+        position: {
+            x: 0,
+            y: 0
+        }
     }))
-  };
+};
 }
 
 function validateFileStep() {

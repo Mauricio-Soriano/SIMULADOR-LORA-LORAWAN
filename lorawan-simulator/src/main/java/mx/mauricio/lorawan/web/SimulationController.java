@@ -3,20 +3,22 @@ package mx.mauricio.lorawan.web;
 import static spark.Spark.after;
 import static spark.Spark.post;
 
-import mx.mauricio.lorawan.communication.TcpSender;
-import mx.mauricio.lorawan.communication.UdpSender;
+
 import mx.mauricio.lorawan.web.dto.SimulationRunRequest;
 import mx.mauricio.lorawan.web.dto.SimulationRunResponse;
+import mx.mauricio.lorawan.simulator.SimulationRunner;
+import mx.mauricio.lorawan.simulator.dto.SimulationRequest;
+import mx.mauricio.lorawan.simulator.dto.SimulationResult;
+import mx.mauricio.lorawan.simulator.dto.DeviceRequest;
+import mx.mauricio.lorawan.simulator.dto.GatewayRequest;
+import mx.mauricio.lorawan.config.LoRaConfig;
 
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+
+
 
 public class SimulationController {
 
-    private final UploadedFileStore fileStore = UploadedFileStore.getInstance();
-    private final CsvDevicePayloadService csvService = new CsvDevicePayloadService();
+    
 
     public void registerRoutes() {
         after((request, response) -> {
@@ -31,25 +33,90 @@ public class SimulationController {
             SimulationRunRequest simulationRequest =
                     JsonUtil.fromJson(request.body(), SimulationRunRequest.class);
 
-            String validationError = validate(simulationRequest);
-            if (validationError != null) {
-                response.status(400);
-                return JsonUtil.toJson(new ErrorResponse(false, validationError));
+            System.out.println("============== REQUEST ==============");
+            System.out.println("inputFile = " + simulationRequest.inputFile);
+
+            System.out.println(
+                "simulation = "
+                + (simulationRequest.simulation == null
+                    ? "NULL"
+                    : "OK")
+            );
+
+            if (simulationRequest.simulation != null) {
+                System.out.println(
+                    "rowsToProcess = "
+                    + simulationRequest.simulation.rowsToProcess
+                );
+
+                System.out.println(
+                    "sendIntervalMs = "
+                    + simulationRequest.simulation.sendIntervalMs
+                );
             }
 
-            UploadedFileStore.StoredFile stored = fileStore.get(simulationRequest.fileToken);
-            if (stored == null) {
+            String validationError = validate(simulationRequest);
+            System.out.println("validationError = " + validationError);
+            if (validationError != null) {
+                response.status(400);
+                System.out.println("VALIDACION OK");
+                return JsonUtil.toJson(new ErrorResponse(false, validationError));
+            }
+            long start = System.currentTimeMillis();
+
+            SimulationRequest simulatorRequest =
+                    convertRequest(
+                            simulationRequest);
+
+            SimulationRunner runner =
+                    new SimulationRunner();
+
+            SimulationResult simulatorResult =
+                    runner.run(
+                            simulatorRequest);
+
+            SimulationRunResponse responseBody =
+                    new SimulationRunResponse();
+
+            responseBody.success =
+                    simulatorResult.isSuccess();
+
+            responseBody.message =
+                    simulatorResult.getMessage();
+
+            responseBody.summary.rowsProcessed =
+                    simulatorResult.getRowsProcessed();
+
+            responseBody.summary.rowsSkipped =
+                    simulatorResult.getRowsSkipped();
+
+            responseBody.summary.devicesConfigured =
+                    simulatorResult.getDevicesConfigured();
+
+            responseBody.summary.durationMs =
+                    System.currentTimeMillis() - start;
+
+            return JsonUtil.toJson(responseBody);
+
+            //Path csvPath = Path.of(simulationRequest.inputFile);
+
+            /*if (!Files.exists(csvPath)) {
                 response.status(404);
-                return JsonUtil.toJson(new ErrorResponse(false, "fileToken no encontrado"));
+                return JsonUtil.toJson(
+                    new ErrorResponse(
+                        false,
+                        "Archivo no encontrado: " + simulationRequest.inputFile
+                    )
+                );
             }
 
             long start = System.currentTimeMillis();
 
             List<List<String>> rows = csvService.readRows(
-                    stored.getPath(),
-                    ",",
-                    simulationRequest.simulation.rowsToProcess,
-                    false
+                csvPath,
+                ",",
+                simulationRequest.simulation.rowsToProcess,
+                false
             );
 
             SimulationRunResponse result = new SimulationRunResponse();
@@ -117,40 +184,34 @@ public class SimulationController {
                     }
                 }
             }
-
+                        
             result.devices.addAll(deviceResults);
             result.summary.durationMs = System.currentTimeMillis() - start;
 
-            return JsonUtil.toJson(result);
+            return JsonUtil.toJson(result); */ 
         });
     }
 
-    private List<SimulationRunResponse.DeviceResult> initDeviceResults(List<SimulationRunRequest.DeviceConfig> devices) {
-        List<SimulationRunResponse.DeviceResult> results = new ArrayList<>();
-        for (SimulationRunRequest.DeviceConfig device : devices) {
-            SimulationRunResponse.DeviceResult item = new SimulationRunResponse.DeviceResult();
-            item.deviceId = device.deviceId;
-            item.deviceClass = device.deviceClass;
-            item.transport = device.transport;
-            item.columnIndexes = device.columnIndexes;
-            item.rowsProcessed = 0;
-            item.uplinksSent = 0;
-            item.uplinksFailed = 0;
-            item.downlinksReceived = 0;
-            item.lastPayload = "";
-            item.avgMarginDb = 0.0;
-            results.add(item);
-        }
-        return results;
-    }
-
     private String validate(SimulationRunRequest request) {
-        if (request == null) return "Body JSON inválido";
-        if (request.fileToken == null || request.fileToken.isBlank()) return "fileToken es obligatorio";
-        if (request.simulation == null) return "simulation es obligatorio";
-        if (request.gateway == null) return "gateway es obligatorio";
-        if (request.devices == null || request.devices.isEmpty()) return "devices es obligatorio";
-        if (request.simulation.rowsToProcess <= 0) return "rowsToProcess debe ser mayor que 0";
+
+        if (request == null)
+            return "Body JSON inválido";
+
+        if (request.inputFile == null || request.inputFile.isBlank())
+            return "inputFile es obligatorio";
+
+        if (request.simulation == null)
+            return "simulation es obligatorio";
+
+        if (request.gateway == null)
+            return "gateway es obligatorio";
+
+        if (request.devices == null || request.devices.isEmpty())
+            return "devices es obligatorio";
+
+        if (request.simulation.rowsToProcess <= 0)
+            return "rowsToProcess debe ser mayor que 0";
+
         return null;
     }
 
@@ -163,4 +224,118 @@ public class SimulationController {
             this.message = message;
         }
     }
+
+    
+
+
+    private SimulationRequest convertRequest(
+            SimulationRunRequest webRequest) {
+
+        SimulationRequest simulatorRequest =
+                new SimulationRequest();
+
+        simulatorRequest.setInputFile(
+                webRequest.inputFile);
+
+        simulatorRequest.setRowsToProcess(
+                webRequest.simulation.rowsToProcess);
+
+        simulatorRequest.setSendIntervalMs(
+                webRequest.simulation.sendIntervalMs);
+
+        GatewayRequest gateway =
+                new GatewayRequest();
+
+        gateway.setGatewayId(
+                webRequest.gateway.gatewayId);
+
+        gateway.setX(
+                webRequest.gateway.x);
+
+        gateway.setY(
+                webRequest.gateway.y);
+
+        gateway.setMaxTxPowerDBm(
+                (int) webRequest.gateway.maxTxPowerDBm);
+
+        gateway.setUdpPort(
+                webRequest.gateway.udpPort);
+
+        gateway.setTcpPort(
+                webRequest.gateway.tcpPort);
+
+        simulatorRequest.setGateway(gateway);
+
+        for (SimulationRunRequest.DeviceConfig webDevice
+                : webRequest.devices) {
+
+            DeviceRequest device =
+                    new DeviceRequest();
+
+            device.setDeviceId(
+                    webDevice.deviceId);
+
+            device.setEnabled(
+                    webDevice.enabled);
+
+            device.setFPort(
+                    webDevice.fPort);
+
+            if (webDevice.position != null) {
+                device.setX(
+                        webDevice.position.x);
+
+                device.setY(
+                        webDevice.position.y);
+            }
+
+            device.setColumnIndexes(
+                    webDevice.columnIndexes);
+
+            device.setConfig(
+                    resolveConfig(
+                            webDevice.config));
+
+            simulatorRequest.addDevice(
+                    device);
+        }
+
+        return simulatorRequest;
+    }
+
+    private LoRaConfig resolveConfig(
+            String configName) {
+
+        if (configName == null) {
+            return LoRaConfig.US915_CLASS_A;
+        }
+
+        switch (configName.toUpperCase()) {
+
+            case "US915_CLASS_A":
+                return LoRaConfig.US915_CLASS_A;
+
+            case "US915_CLASS_B":
+                return LoRaConfig.US915_CLASS_B;
+
+            case "US915_CLASS_C":
+                return LoRaConfig.US915_CLASS_C;
+
+            case "EU868_CLASS_A":
+                return LoRaConfig.EU868_CLASS_A;
+
+            case "EU868_CLASS_B":
+                return LoRaConfig.EU868_CLASS_B;
+
+            case "EU868_CLASS_C":
+                return LoRaConfig.EU868_CLASS_C;
+
+            default:
+                return LoRaConfig.US915_CLASS_A;
+        }
+    }
+
+
+
+
 }

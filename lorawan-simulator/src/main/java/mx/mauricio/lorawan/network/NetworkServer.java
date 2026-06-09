@@ -19,7 +19,7 @@ import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
 
 public class NetworkServer {
 
-    private final Map<String, Device> registeredDevices = new HashMap<>();
+    private final DeviceRegistry deviceRegistry = new DeviceRegistry();
     private final Map<String, Gateway> registeredGateways = new HashMap<>();
     private final Map<String, Integer> downlinkCounters = new HashMap<>();
 
@@ -28,6 +28,7 @@ public class NetworkServer {
     private final DownlinkPolicy classCPolicy = new ClassCDownlinkPolicy();
 
     private final PerformanceMetricsStore performanceMetricsStore;
+    private final PayloadParser payloadParser = new PayloadParser();
     private final LinkBudgetService linkBudgetService;
 
     public NetworkServer() {
@@ -41,11 +42,7 @@ public class NetworkServer {
     }
 
     public void registerDevice(Device device) {
-        registeredDevices.put(device.getDeviceId(), device);
-        System.out.println("[NetworkServer] Dispositivo registrado: "
-                + device.getDeviceId()
-                + " clase="
-                + device.getConfig().getDeviceClass());
+        deviceRegistry.register(device);
     }
 
     public void registerGateway(Gateway gateway) {
@@ -54,11 +51,11 @@ public class NetworkServer {
     }
 
     public Device getRegisteredDevice(String deviceId) {
-        return registeredDevices.get(deviceId);
+        return deviceRegistry.get(deviceId);
     }
 
     public boolean isRegistered(String deviceId) {
-        return registeredDevices.containsKey(deviceId);
+        return deviceRegistry.contains(deviceId);
     }
 
     public Gateway getRegisteredGateway(String gatewayId) {
@@ -88,15 +85,16 @@ public class NetworkServer {
                 + " (" + transport + "): "
                 + payload);
 
-        Map<String, String> fields = parsePayload(payload);
-        logParsedFields(fields);
+        Map<String, String> fields =
+                payloadParser.parse(payload);
 
-        if (!isValidPayload(fields)) {
-            System.out.println("[NetworkServer] Verificación de integridad: ERROR");
-            return;
-        }
+        payloadParser.logFields(fields);
+
+        if (!payloadParser.isValid(fields)) {
 
         System.out.println("[NetworkServer] Verificación de integridad: OK");
+         return;
+        }
 
         String deviceId = fields.get("DEV");
         Device device = getRegisteredDevice(deviceId);
@@ -113,7 +111,9 @@ public class NetworkServer {
         String decodedData = fields.get("DATA");
         System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
         System.out.println("[NetworkServer] Fuente decodificada: "
-                + describeDecodedSource(fields.get("FPORT"), decodedData));
+            + payloadParser.describeDecodedSource(
+                    fields.get("FPORT"),
+                    decodedData));
 
         Gateway gateway = getRegisteredGateway(gatewayId);
         if (gateway != null) {
@@ -121,8 +121,8 @@ public class NetworkServer {
         }
 
         evaluateDownlinkPolicy(device, fields, gatewayId, transport);
+    
     }
-
     private void evaluateDownlinkPolicy(Device device,
                                         Map<String, String> fields,
                                         String gatewayId,
@@ -228,7 +228,7 @@ public class NetworkServer {
         return String.format("%04X", nextValue);
     }
 
-    private Map<String, String> parsePayload(String payload) {
+    /*private Map<String, String> parsePayload(String payload) {
         Map<String, String> fields = new HashMap<>();
 
         String[] parts = payload.split("\\|");
@@ -241,15 +241,16 @@ public class NetworkServer {
 
         return fields;
     }
-
-    private void logParsedFields(Map<String, String> fields) {
+    */
+    /*private void logParsedFields(Map<String, String> fields) {
         System.out.println("[NetworkServer] Campos parseados:");
         for (Map.Entry<String, String> entry : fields.entrySet()) {
             System.out.println(" " + entry.getKey() + " = " + entry.getValue());
         }
     }
+    */
 
-    private boolean isValidPayload(Map<String, String> fields) {
+    /*private boolean isValidPayload(Map<String, String> fields) {
         if (!fields.containsKey("MHDR")) return false;
         if (!fields.containsKey("DEV")) return false;
         if (!fields.containsKey("FCNT")) return false;
@@ -266,16 +267,18 @@ public class NetworkServer {
 
         return true;
     }
-
+    */
     public boolean testIsValidPayload(String payload) {
-        return isValidPayload(parsePayload(payload));
-    }
 
-    private boolean isBlank(String value) {
+        return payloadParser.isValid(
+                payloadParser.parse(payload)
+        );
+    }
+    /*private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
-
-    private boolean isNumeric(String value) {
+    */
+    /*private boolean isNumeric(String value) {
         if (isBlank(value)) {
             return false;
         }
@@ -287,8 +290,8 @@ public class NetworkServer {
             return false;
         }
     }
-
-    private String describeDecodedSource(String fPort, String data) {
+    */
+    /*private String describeDecodedSource(String fPort, String data) {
         String sourceType;
 
         switch (fPort) {
@@ -308,7 +311,7 @@ public class NetworkServer {
 
         return sourceType + " (FPORT " + fPort + ") = " + data;
     }
-
+    */
 
     
 }
