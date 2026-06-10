@@ -1,6 +1,5 @@
 package mx.mauricio.lorawan.network;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import mx.mauricio.lorawan.config.DeviceClass;
@@ -20,8 +19,11 @@ import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
 public class NetworkServer {
 
     private final DeviceRegistry deviceRegistry = new DeviceRegistry();
-    private final Map<String, Gateway> registeredGateways = new HashMap<>();
-    private final Map<String, Integer> downlinkCounters = new HashMap<>();
+    private final DeviceSessionRegistry sessionRegistry =
+    new DeviceSessionRegistry();
+    private final GatewayRegistry gatewayRegistry =
+        new GatewayRegistry();
+
 
     private final DownlinkPolicy classAPolicy = new ClassADownlinkPolicy();
     private final DownlinkPolicy classBPolicy = new ClassBDownlinkPolicy();
@@ -29,6 +31,8 @@ public class NetworkServer {
 
     private final PerformanceMetricsStore performanceMetricsStore;
     private final PayloadParser payloadParser = new PayloadParser();
+    private final UplinkProcessor uplinkProcessor =
+    new UplinkProcessor();
     private final LinkBudgetService linkBudgetService;
 
     public NetworkServer() {
@@ -46,8 +50,7 @@ public class NetworkServer {
     }
 
     public void registerGateway(Gateway gateway) {
-        registeredGateways.put(gateway.getGatewayId(), gateway);
-        System.out.println("[NetworkServer] Gateway registrado: " + gateway.getGatewayId());
+        gatewayRegistry.register(gateway);
     }
 
     public Device getRegisteredDevice(String deviceId) {
@@ -59,8 +62,19 @@ public class NetworkServer {
     }
 
     public Gateway getRegisteredGateway(String gatewayId) {
-        return registeredGateways.get(gatewayId);
+        return gatewayRegistry.get(gatewayId);
     }
+
+
+    //Métodos nuevos fase 2.1
+    public boolean isGatewayRegistered(String gatewayId) {
+        return gatewayRegistry.contains(gatewayId);
+    }
+
+    public int getRegisteredGatewayCount() {
+        return gatewayRegistry.size();
+    }
+
 
     public PerformanceMetricsStore getPerformanceMetricsStore() {
         return performanceMetricsStore;
@@ -85,19 +99,39 @@ public class NetworkServer {
                 + " (" + transport + "): "
                 + payload);
 
-        Map<String, String> fields =
-                payloadParser.parse(payload);
+       UplinkContext context =
+                uplinkProcessor.process(payload);
 
-        payloadParser.logFields(fields);
-
-        if (!payloadParser.isValid(fields)) {
-
-        System.out.println("[NetworkServer] Verificación de integridad: OK");
-         return;
+        if (context == null) {
+            System.out.println(
+                "[NetworkServer] Payload inválido.");
+            return;
         }
 
-        String deviceId = fields.get("DEV");
+        Map<String, String> fields =
+                context.getFields();
+
+        String deviceId =
+                context.getDeviceId();
+
         Device device = getRegisteredDevice(deviceId);
+
+
+        DeviceSession session =
+            sessionRegistry.getOrCreate(deviceId);
+
+        session.incrementFCntUp();
+
+
+        System.out.println(
+            "[DeviceSession] "
+            + deviceId
+            + " FCntUp="
+            + session.getFCntUp()
+        );
+
+        session.setLastGatewayId(gatewayId);
+
 
         if (device != null) {
             System.out.println("[NetworkServer] Dispositivo identificado: " + deviceId);
@@ -108,17 +142,42 @@ public class NetworkServer {
             return;
         }
 
-        String decodedData = fields.get("DATA");
-        System.out.println("[NetworkServer] Payload decodificado: " + decodedData);
-        System.out.println("[NetworkServer] Fuente decodificada: "
-            + payloadParser.describeDecodedSource(
-                    fields.get("FPORT"),
-                    decodedData));
+        System.out.println(
+            "[NetworkServer] Payload decodificado: "
+            + context.getDecodedPayload());
 
-        Gateway gateway = getRegisteredGateway(gatewayId);
-        if (gateway != null) {
-            registerTransmissionMetric(device, gateway, true);
-        }
+        System.out.println(
+            "[NetworkServer] Fuente decodificada: "
+            + context.getDescription());
+
+        Gateway gateway =
+        getRegisteredGateway(gatewayId);
+
+if (gateway != null) {
+
+    LinkBudgetResult result =
+            registerTransmissionMetric(
+                    device,
+                    gateway,
+                    true);
+
+    session.setLastGatewayId(gatewayId);
+
+    session.setLastRssi(
+            result.getRxPowerDbm());
+
+    session.setLastSnr(
+            result.getMarginDb());
+
+    System.out.println(
+        "[DeviceSession] "
+        + deviceId
+        + " RSSI="
+        + result.getRxPowerDbm()
+        + " SNR="
+        + result.getMarginDb()
+    );
+}
 
         evaluateDownlinkPolicy(device, fields, gatewayId, transport);
     
@@ -165,7 +224,21 @@ public class NetworkServer {
                                      String fPort,
                                      String transport) {
 
-        String fCnt = nextDownlinkCounter(devAddr);
+        DeviceSession session =
+                sessionRegistry.getOrCreate(devAddr);
+
+        String fCnt =
+                String.format("%04X",
+                        session.nextFCntDown());
+
+        System.out.println(
+                "[DeviceSession] "
+                + devAddr
+                + " FCntDown="
+                + session.getFCntDown()
+        );
+
+
         DownlinkFrame downlink = new DownlinkFrame(devAddr, fCnt, fPort, command);
         String payload = downlink.toPayloadString();
 
@@ -184,7 +257,7 @@ public class NetworkServer {
         gateway.sendDownlink(payload, transport);
     }
 
-    public void registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
+    public LinkBudgetResult registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
         double dx = gateway.getX();
         double dy = gateway.getY();
         double distanceMeters = Math.sqrt(dx * dx + dy * dy);
@@ -219,99 +292,7 @@ public class NetworkServer {
                 result.getRxPowerDbm(),
                 result.getMarginDb(),
                 result.isLos()
-        );
+        );return result;
     }
 
-    private String nextDownlinkCounter(String devAddr) {
-        int nextValue = downlinkCounters.getOrDefault(devAddr, 0) + 1;
-        downlinkCounters.put(devAddr, nextValue);
-        return String.format("%04X", nextValue);
-    }
-
-    /*private Map<String, String> parsePayload(String payload) {
-        Map<String, String> fields = new HashMap<>();
-
-        String[] parts = payload.split("\\|");
-        for (String part : parts) {
-            String[] keyValue = part.split("=", 2);
-            if (keyValue.length == 2) {
-                fields.put(keyValue[0], keyValue[1]);
-            }
-        }
-
-        return fields;
-    }
-    */
-    /*private void logParsedFields(Map<String, String> fields) {
-        System.out.println("[NetworkServer] Campos parseados:");
-        for (Map.Entry<String, String> entry : fields.entrySet()) {
-            System.out.println(" " + entry.getKey() + " = " + entry.getValue());
-        }
-    }
-    */
-
-    /*private boolean isValidPayload(Map<String, String> fields) {
-        if (!fields.containsKey("MHDR")) return false;
-        if (!fields.containsKey("DEV")) return false;
-        if (!fields.containsKey("FCNT")) return false;
-        if (!fields.containsKey("FPORT")) return false;
-        if (!fields.containsKey("DATA")) return false;
-        if (!fields.containsKey("MIC")) return false;
-
-        if (!"40".equals(fields.get("MHDR"))) return false;
-        if (isBlank(fields.get("DEV"))) return false;
-        if (isBlank(fields.get("FCNT"))) return false;
-        if (isBlank(fields.get("FPORT"))) return false;
-        if (fields.get("DATA") == null) return false;
-        if (isBlank(fields.get("MIC"))) return false;
-
-        return true;
-    }
-    */
-    public boolean testIsValidPayload(String payload) {
-
-        return payloadParser.isValid(
-                payloadParser.parse(payload)
-        );
-    }
-    /*private boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-    */
-    /*private boolean isNumeric(String value) {
-        if (isBlank(value)) {
-            return false;
-        }
-
-        try {
-            Double.parseDouble(value);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
-    */
-    /*private String describeDecodedSource(String fPort, String data) {
-        String sourceType;
-
-        switch (fPort) {
-            case "1":
-                sourceType = "medición de sensor";
-                break;
-            case "2":
-                sourceType = "mensaje de estado";
-                break;
-            case "3":
-                sourceType = "mensaje de control/prueba";
-                break;
-            default:
-                sourceType = isNumeric(data) ? "medición numérica" : "mensaje de aplicación";
-                break;
-        }
-
-        return sourceType + " (FPORT " + fPort + ") = " + data;
-    }
-    */
-
-    
 }
