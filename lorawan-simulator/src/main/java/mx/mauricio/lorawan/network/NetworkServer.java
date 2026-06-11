@@ -2,15 +2,11 @@ package mx.mauricio.lorawan.network;
 
 import java.util.Map;
 
-import mx.mauricio.lorawan.config.DeviceClass;
+
 import mx.mauricio.lorawan.device.Device;
-import mx.mauricio.lorawan.frame.DownlinkFrame;
+
 import mx.mauricio.lorawan.gateway.Gateway;
-import mx.mauricio.lorawan.network.policy.ClassADownlinkPolicy;
-import mx.mauricio.lorawan.network.policy.ClassBDownlinkPolicy;
-import mx.mauricio.lorawan.network.policy.ClassCDownlinkPolicy;
-import mx.mauricio.lorawan.network.policy.DownlinkDecision;
-import mx.mauricio.lorawan.network.policy.DownlinkPolicy;
+
 import mx.mauricio.lorawan.performance.LinkBudgetResult;
 import mx.mauricio.lorawan.performance.LinkBudgetService;
 import mx.mauricio.lorawan.performance.PerformanceMetric;
@@ -25,14 +21,11 @@ public class NetworkServer {
         new GatewayRegistry();
 
 
-    private final DownlinkPolicy classAPolicy = new ClassADownlinkPolicy();
-    private final DownlinkPolicy classBPolicy = new ClassBDownlinkPolicy();
-    private final DownlinkPolicy classCPolicy = new ClassCDownlinkPolicy();
-
     private final PerformanceMetricsStore performanceMetricsStore;
-    private final PayloadParser payloadParser = new PayloadParser();
     private final UplinkProcessor uplinkProcessor =
     new UplinkProcessor();
+    private final DownlinkProcessor downlinkProcessor =
+        new DownlinkProcessor();
     private final LinkBudgetService linkBudgetService;
 
     public NetworkServer() {
@@ -122,6 +115,22 @@ public class NetworkServer {
 
         session.incrementFCntUp();
 
+        if (context.isConfirmed()) {
+
+            session.setAckRequired(true);
+
+            System.out.println(
+                "[DeviceSession] "
+                + deviceId
+                + " ACK requerido"
+            );
+        }
+
+        System.out.println(
+            "[DEBUG] ackRequired="
+            + session.isAckRequired()
+        );
+
 
         System.out.println(
             "[DeviceSession] "
@@ -179,83 +188,20 @@ if (gateway != null) {
     );
 }
 
-        evaluateDownlinkPolicy(device, fields, gatewayId, transport);
+        if (gateway != null) {
+
+            downlinkProcessor.process(
+                    device,
+                    session,
+                    gateway,
+                    context,
+                    transport
+            );
+            
+        }
     
     }
-    private void evaluateDownlinkPolicy(Device device,
-                                        Map<String, String> fields,
-                                        String gatewayId,
-                                        String transport) {
 
-        DownlinkPolicy policy = resolvePolicy(device);
-        DownlinkDecision decision = policy.evaluate(device, fields, transport);
-
-        if (!decision.shouldSend()) {
-            return;
-        }
-
-        sendCommandDownlink(
-                gatewayId,
-                device.getDeviceId(),
-                decision.getCommand(),
-                decision.getFPort(),
-                transport
-        );
-    }
-
-    private DownlinkPolicy resolvePolicy(Device device) {
-        DeviceClass deviceClass = device.getConfig().getDeviceClass();
-
-        switch (deviceClass) {
-            case CLASS_A:
-                return classAPolicy;
-            case CLASS_B:
-                return classBPolicy;
-            case CLASS_C:
-                return classCPolicy;
-            default:
-                return (d, f, t) -> DownlinkDecision.none();
-        }
-    }
-
-    private void sendCommandDownlink(String gatewayId,
-                                     String devAddr,
-                                     String command,
-                                     String fPort,
-                                     String transport) {
-
-        DeviceSession session =
-                sessionRegistry.getOrCreate(devAddr);
-
-        String fCnt =
-                String.format("%04X",
-                        session.nextFCntDown());
-
-        System.out.println(
-                "[DeviceSession] "
-                + devAddr
-                + " FCntDown="
-                + session.getFCntDown()
-        );
-
-
-        DownlinkFrame downlink = new DownlinkFrame(devAddr, fCnt, fPort, command);
-        String payload = downlink.toPayloadString();
-
-        System.out.println("[NetworkServer] Generando Downlink para " + devAddr + ": " + command);
-        System.out.println("[NetworkServer] FCNT downlink asignado: " + fCnt);
-        System.out.println("[NetworkServer] Enviando Downlink vía gateway "
-                + gatewayId + " (" + transport + ")...");
-
-        Gateway gateway = getRegisteredGateway(gatewayId);
-
-        if (gateway == null) {
-            System.out.println("[NetworkServer] ERROR: Gateway no encontrado: " + gatewayId);
-            return;
-        }
-
-        gateway.sendDownlink(payload, transport);
-    }
 
     public LinkBudgetResult registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
         double dx = gateway.getX();

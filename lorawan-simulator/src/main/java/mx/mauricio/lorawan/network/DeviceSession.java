@@ -11,11 +11,23 @@ public class DeviceSession {
 
     private double lastRssi;
     private double lastSnr;
+
+    private boolean ackRequired;
     
     public DeviceSession(String deviceId) {
         this.deviceId = deviceId;
         this.fCntUp = 0;
         this.fCntDown = 0;
+
+        this.ackRequired = false;
+    }
+
+    public boolean isAckRequired() {
+        return ackRequired;
+    }
+
+    public void setAckRequired(boolean ackRequired) {
+        this.ackRequired = ackRequired;
     }
 
     public int nextFCntDown() {

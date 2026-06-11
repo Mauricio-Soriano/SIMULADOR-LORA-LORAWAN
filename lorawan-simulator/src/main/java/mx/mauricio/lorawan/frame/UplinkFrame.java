@@ -11,28 +11,45 @@ public class UplinkFrame {
 
     private MacHeader macHeader;
     private FrameHeader frameHeader;
+    
+    private String mhdr;
+
     private int fPort;
     private String mic;
+    
 
     public UplinkFrame(Device device, ApplicationPayload appPayload) {
         this.device = device;
+        System.out.println(
+            "[DEBUG] confirmed="
+            + device.isConfirmed()
+        );
         this.appPayload = appPayload;
         this.frameCounter = device.getFrameCounter();
 
-        this.macHeader = new MacHeader("40");
+        this.mhdr =
+            device.isConfirmed()
+            ? "80"
+            : "40";
+
+        this.macHeader =
+                new MacHeader(mhdr);
         this.frameHeader = new FrameHeader(device.getDeviceId(), frameCounter);
         this.fPort = appPayload.getFPort();
         this.mic = "0000";
     }
 
     public String toHexString() {
-        return String.format("MHDR=40|DEV=%s|FCNT=%04X|FPORT=%d|DATA=%s|MIC=%s",
-                device.getDeviceId(),
-                frameCounter,
-                fPort,
-                appPayload.getData(),
-                mic);
+        return String.format(
+            "MHDR=%s|DEV=%s|FCNT=%04X|FPORT=%d|DATA=%s|MIC=%s",
+            mhdr,
+            device.getDeviceId(),
+            frameCounter,
+            fPort,
+            appPayload.getData(),
+            mic);
     }
+    
 
     @Override
     public String toString() {

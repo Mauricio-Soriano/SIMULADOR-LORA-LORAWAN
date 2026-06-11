@@ -16,16 +16,27 @@ public class Device {
     private final String deviceId;
     private final Gateway gateway;
     private final LoRaConfig config;
+    private boolean confirmed;
     private int frameCounter = 0;
 
-    public Device(String deviceId, Gateway gateway, LoRaConfig config) {
+    public Device(
+            String deviceId,
+            Gateway gateway,
+            LoRaConfig config,
+            boolean confirmed) {
+
         this.deviceId = deviceId;
         this.gateway = gateway;
         this.config = config;
+        this.confirmed = confirmed;
     }
 
-    public Device(String deviceId, Gateway gateway) {
-        this(deviceId, gateway, LoRaConfig.US915_CLASS_A);
+    public Device(
+            String deviceId,
+            Gateway gateway,
+            LoRaConfig config) {
+
+        this(deviceId, gateway, config, false);
     }
 
     public void sendUplink(ApplicationPayload appPayload) {
@@ -78,6 +89,12 @@ public class Device {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+    public void setConfirmed(boolean confirmed) {
+        this.confirmed = confirmed;
     }
 
     public String getDeviceId() { return deviceId; }

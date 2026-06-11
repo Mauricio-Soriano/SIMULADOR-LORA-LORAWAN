@@ -7,22 +7,36 @@ public class DownlinkFrame {
     private final String fPort;
     private final String frmPayload;
     private final String mic = "0000";
+    private boolean ack;
 
-    public DownlinkFrame(String devAddr, String fCnt, String fPort, String frmPayload) {
+    public DownlinkFrame(
+            String devAddr,
+            String fCnt,
+            String fPort,
+            String frmPayload,
+            boolean ack) {
+
         this.devAddr = devAddr;
         this.fCnt = fCnt;
         this.fPort = fPort;
         this.frmPayload = frmPayload;
+        this.ack = ack;
     }
 
     // Método para convertir el objeto a la cadena que enviará el socket
     public String toPayloadString() {
-        return "MHDR=" + mhdr + 
-               "|DEV=" + devAddr + 
-               "|FCNT=" + fCnt + 
-               "|FPORT=" + fPort + 
-               "|DATA=" + frmPayload + 
-               "|MIC=" + mic;
+
+        return "MHDR=" + mhdr +
+            "|ACK=" + ack +
+            "|DEV=" + devAddr +
+            "|FCNT=" + fCnt +
+            "|FPORT=" + fPort +
+            "|DATA=" + frmPayload +
+            "|MIC=" + mic;
+    }
+
+    public boolean isAck() {
+        return ack;
     }
 
     public String getDevAddr() { return devAddr; }

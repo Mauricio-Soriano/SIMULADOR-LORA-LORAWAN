@@ -36,7 +36,15 @@ public class PayloadParser {
         if (!fields.containsKey("DATA")) return false;
         if (!fields.containsKey("MIC")) return false;
 
-        if (!"40".equals(fields.get("MHDR"))) return false;
+        String mhdr = fields.get("MHDR");
+
+        boolean validMhdr =
+                "40".equals(mhdr)
+                || "80".equals(mhdr);
+
+        if (!validMhdr) {
+            return false;
+        }
 
         if (isBlank(fields.get("DEV"))) return false;
         if (isBlank(fields.get("FCNT"))) return false;

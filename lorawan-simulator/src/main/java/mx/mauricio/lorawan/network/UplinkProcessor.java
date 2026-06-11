@@ -29,11 +29,16 @@ public class UplinkProcessor {
                         fields.get("FPORT"),
                         decodedData);
 
+        String mhdr = fields.get("MHDR");
+        boolean confirmed = "80".equals(mhdr);
+
+
         return new UplinkContext(
                 fields,
                 deviceId,
                 decodedData,
-                description
+                description,
+                confirmed
         );
     }
 }

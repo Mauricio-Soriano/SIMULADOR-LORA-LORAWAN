@@ -65,8 +65,20 @@ public class SimulationRunner {
             Device device = new Device(
                 deviceRequest.getDeviceId(),
                 gateway,
-                config
+                config                
             );
+
+            switch (config.getDeviceClass()) {
+
+                case CLASS_B:
+                case CLASS_C:
+                    device.setConfirmed(true);
+                    break;
+
+                default:
+                    device.setConfirmed(false);
+            }
+
 
             devices.add(device);
             enabledDevices.add(deviceRequest);
