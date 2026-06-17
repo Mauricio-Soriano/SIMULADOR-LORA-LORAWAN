@@ -34,6 +34,9 @@ public class NetworkServer {
 
     private final DuplicateFrameDetector duplicateDetector =
         new DuplicateFrameDetector();
+    
+    private final PacketLossSimulator packetLossSimulator =
+        new PacketLossSimulator(0.20);
 
     public NetworkServer() {
         this(new PerformanceMetricsStore(), new LinkBudgetService());
@@ -127,6 +130,21 @@ public class NetworkServer {
 
         DeviceSession session =
             sessionRegistry.getOrCreate(deviceId);
+
+        session.incrementPacketsTransmitted();
+        
+        if (packetLossSimulator.shouldDrop()) {
+
+            System.out.println(
+                    "[NetworkServer] PACKET LOST -> "
+                    + deviceId
+                    + " FCNT="
+                    + fields.get("FCNT"));
+
+            session.incrementPacketsLost(1);
+
+            return;
+        }
         
         
         if (duplicateDetector.isDuplicate(
@@ -143,7 +161,7 @@ public class NetworkServer {
         }
         
         
-        session.incrementPacketsTransmitted();
+        
         session.incrementPacketsReceived();
 
         if (session.getLastFcnt() >= 0) {
