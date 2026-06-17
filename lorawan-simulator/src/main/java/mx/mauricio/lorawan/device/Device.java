@@ -4,6 +4,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+import java.util.Map;
 
 import mx.mauricio.lorawan.communication.TcpSender;
 import mx.mauricio.lorawan.config.DeviceClass;
@@ -18,6 +19,9 @@ public class Device {
     private final LoRaConfig config;
     private boolean confirmed;
     private int frameCounter = 0;
+    private static final int MAX_RETRIES = 3;
+    private int retryCount = 0;
+    private boolean ackReceived = false;
 
     public Device(
             String deviceId,
@@ -39,6 +43,57 @@ public class Device {
         this(deviceId, gateway, config, false);
     }
 
+
+
+
+    private void retransmit(
+            String payload,
+            TcpSender sender) {
+
+        while (!ackReceived
+                && retryCount < MAX_RETRIES) {
+
+            retryCount++;
+
+            System.out.println(
+                    "[Device "
+                            + deviceId
+                            + "] Retransmisión #"
+                            + retryCount);
+
+            String response =
+                    sender.send(payload);
+
+            if (response != null
+                    && response.contains("ACK=true")) {
+
+                ackReceived = true;
+
+                System.out.println(
+                        "[Device "
+                                + deviceId
+                                + "] ACK recibido correctamente");
+
+                break;
+            }
+        }
+        
+
+        if (!ackReceived) {
+
+            System.out.println(
+                    "[Device "
+                            + deviceId
+                            + "] ACK no recibido tras "
+                            + MAX_RETRIES
+                            + " intentos");
+        }
+    }
+
+
+
+
+
     public void sendUplink(ApplicationPayload appPayload) {
         frameCounter++;
         UplinkFrame frame = new UplinkFrame(this, appPayload);
@@ -52,10 +107,44 @@ public class Device {
         String payload = frame.toHexString();
 
         if (config.getDeviceClass() == DeviceClass.CLASS_A) {
+
+            ackReceived = false;
+            retryCount = 0;
+
             sendUdpAndWaitResponse(payload);
+
         } else {
-            TcpSender tcpSender = new TcpSender("127.0.0.1", 6000);
-            tcpSender.send(payload);
+
+            TcpSender tcpSender =
+                    new TcpSender("127.0.0.1", 6000);
+
+            String downlink =
+                    tcpSender.send(payload);
+
+            if (downlink != null) {
+
+                System.out.println(
+                        "[Device " + deviceId +
+                        "] Downlink TCP recibido: "
+                        + downlink);
+
+                if (downlink.contains("ACK=true")) {
+
+                    ackReceived = true;
+
+                    System.out.println(
+                            "[Device "
+                            + deviceId
+                            + "] ACK recibido correctamente");
+
+                }
+                if (confirmed && !ackReceived) {
+
+                    retransmit(
+                            payload,
+                            tcpSender);
+                }
+            }
         }
     }
 
@@ -81,11 +170,49 @@ public class Device {
 
             socket.receive(responsePacket);
 
-            String downlink = new String(responsePacket.getData(), 0, responsePacket.getLength());
-            System.out.println("[Device " + deviceId + "] Downlink UDP recibido: " + downlink);
+            String downlink =
+                    new String(
+                            responsePacket.getData(),
+                            0,
+                            responsePacket.getLength());
+
+            System.out.println(
+                    "[Device "
+                            + deviceId
+                            + "] Downlink UDP recibido: "
+                            + downlink);
+
+            Map<String, String> fields =
+                    new java.util.HashMap<>();
+
+            for (String part : downlink.split("\\|")) {
+
+                String[] kv =
+                        part.split("=", 2);
+
+                if (kv.length == 2) {
+
+                    fields.put(
+                            kv[0],
+                            kv[1]);
+                }
+            }
+
+            boolean ackReceived =
+                    "true".equals(
+                            fields.get("ACK"));
+
+            if (ackReceived) {
+
+                System.out.println(
+                        "[Device "
+                                + deviceId
+                                + "] ACK recibido del Network Server");
+            }
 
         } catch (SocketTimeoutException e) {
             System.out.println("[Device " + deviceId + "] No se recibió downlink UDP dentro del tiempo de espera.");
+            
         } catch (Exception e) {
             e.printStackTrace();
         }

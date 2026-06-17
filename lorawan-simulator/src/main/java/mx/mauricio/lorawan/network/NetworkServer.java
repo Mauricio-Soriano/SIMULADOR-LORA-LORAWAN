@@ -12,6 +12,7 @@ import mx.mauricio.lorawan.performance.LinkBudgetService;
 import mx.mauricio.lorawan.performance.PerformanceMetric;
 import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
 
+
 public class NetworkServer {
 
     private final DeviceRegistry deviceRegistry = new DeviceRegistry();
@@ -27,6 +28,12 @@ public class NetworkServer {
     private final DownlinkProcessor downlinkProcessor =
         new DownlinkProcessor();
     private final LinkBudgetService linkBudgetService;
+
+    private final AdrManager adrManager =
+        new AdrManager();
+
+    private final DuplicateFrameDetector duplicateDetector =
+        new DuplicateFrameDetector();
 
     public NetworkServer() {
         this(new PerformanceMetricsStore(), new LinkBudgetService());
@@ -104,6 +111,14 @@ public class NetworkServer {
         Map<String, String> fields =
                 context.getFields();
 
+        String fcntString =
+                fields.get("FCNT");
+
+        int currentFcnt =
+                Integer.parseInt(
+                        fcntString,
+                        16);
+
         String deviceId =
                 context.getDeviceId();
 
@@ -112,6 +127,60 @@ public class NetworkServer {
 
         DeviceSession session =
             sessionRegistry.getOrCreate(deviceId);
+        
+        
+        if (duplicateDetector.isDuplicate(
+                session,
+                fields.get("FCNT"))) {
+
+            System.out.println(
+                    "[NetworkServer] DUPLICATE UPLINK detectado para "
+                    + deviceId
+                    + " FCNT="
+                    + fields.get("FCNT"));
+
+            return;
+        }
+        
+        
+        session.incrementPacketsTransmitted();
+        session.incrementPacketsReceived();
+
+        if (session.getLastFcnt() >= 0) {
+
+            int expected =
+                    session.getLastFcnt() + 1;
+
+            if (currentFcnt > expected) {
+
+                int lost =
+                        currentFcnt - expected;
+
+                session.incrementPacketsLost(lost);
+
+                System.out.println(
+                        "[Metrics] "
+                                + deviceId
+                                + " PDR="
+                                + String.format(
+                                        "%.2f",
+                                        session.getPdr())
+                                + "%");
+            }
+        }
+
+        session.setLastFcnt(currentFcnt);
+
+        System.out.println(
+        "[Metrics] "
+                + deviceId
+                + " Rx="
+                + session.getPacketsReceived()
+                + " Lost="
+                + session.getPacketsLost());
+        
+
+
 
         session.incrementFCntUp();
 
@@ -178,6 +247,19 @@ if (gateway != null) {
     session.setLastSnr(
             result.getMarginDb());
 
+    int recommendedSf =
+            adrManager.recommendSpreadingFactor(
+                    session.getLastRssi());
+
+    session.setRecommendedSf(
+            recommendedSf);
+
+    System.out.println(
+            "[ADR] "
+            + device.getDeviceId()
+            + " recomendado SF"
+            + recommendedSf);
+
     System.out.println(
         "[DeviceSession] "
         + deviceId
@@ -201,7 +283,9 @@ if (gateway != null) {
         }
     
     }
-
+    public DeviceSessionRegistry getSessionRegistry() {
+        return sessionRegistry;
+    }
 
     public LinkBudgetResult registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
         double dx = gateway.getX();

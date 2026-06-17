@@ -1,5 +1,6 @@
 package mx.mauricio.lorawan.network;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,5 +27,9 @@ public class DeviceSessionRegistry {
 
     public int size() {
         return sessions.size();
+    }
+
+    public Collection<DeviceSession> getAllSessions() {
+        return sessions.values();
     }
 }

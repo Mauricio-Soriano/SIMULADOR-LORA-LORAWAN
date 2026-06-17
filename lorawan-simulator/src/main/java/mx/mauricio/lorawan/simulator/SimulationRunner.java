@@ -9,6 +9,7 @@ import mx.mauricio.lorawan.config.LoRaConfig;
 import mx.mauricio.lorawan.device.Device;
 import mx.mauricio.lorawan.frame.ApplicationPayload;
 import mx.mauricio.lorawan.gateway.Gateway;
+import mx.mauricio.lorawan.metrics.MetricsReporter;
 import mx.mauricio.lorawan.network.NetworkServer;
 import mx.mauricio.lorawan.simulator.dto.DeviceRequest;
 import mx.mauricio.lorawan.simulator.dto.GatewayRequest;
@@ -151,6 +152,14 @@ public class SimulationRunner {
 
             joinSilently(udpThread, 1000);
             joinSilently(tcpThread, 1000);
+
+            MetricsReporter reporter =
+                    new MetricsReporter();
+
+            reporter.printReport(
+                    networkServer
+                            .getSessionRegistry()
+                            .getAllSessions());
 
             System.out.println("Simulation complete.");
         }

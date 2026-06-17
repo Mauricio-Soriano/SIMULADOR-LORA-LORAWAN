@@ -14,6 +14,19 @@ public class AckDownlinkBuilder {
                         "%04X",
                         session.nextFCntDown());
 
+        System.out.println(
+            "[DeviceSession] "
+            + device.getDeviceId()
+            + " FCntDown="
+            + session.getFCntDown()
+        );
+
+        System.out.println(
+            "[NetworkServer] ACK FCntDown="
+            + fCnt
+        );
+
+        
         return new DownlinkFrame(
             device.getDeviceId(),
             fCnt,
