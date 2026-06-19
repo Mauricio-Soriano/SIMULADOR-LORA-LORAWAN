@@ -1,5 +1,8 @@
 package mx.mauricio.lorawan.network;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class DeviceSession {
 
     private final String deviceId;
@@ -23,6 +26,18 @@ public class DeviceSession {
     private double lastSnr;
 
     private boolean ackRequired;
+
+    private final List<Double> rssiHistory =
+        new ArrayList<>();
+
+    private final List<Double> snrHistory = new ArrayList<>();
+
+    private final List<Long> latencyHistory = new ArrayList<>();
+    
+    private long totalBytesReceived = 0;
+
+    private long firstPacketTimestamp = 0;
+    private long lastPacketTimestamp = 0;
     
     public DeviceSession(String deviceId) {
         this.deviceId = deviceId;
@@ -31,6 +46,117 @@ public class DeviceSession {
 
         this.ackRequired = false;
         
+    }
+
+    public void registerPacketTimestamp() {
+
+        long now = System.currentTimeMillis();
+
+        if(firstPacketTimestamp == 0) {
+            firstPacketTimestamp = now;
+        }
+
+        lastPacketTimestamp = now;
+    }
+
+    public double getThroughputKbps() {
+
+        if(firstPacketTimestamp == 0
+                || lastPacketTimestamp == 0) {
+            return 0.0;
+        }
+
+        long durationMs =
+                lastPacketTimestamp
+                - firstPacketTimestamp;
+
+        if(durationMs <= 0) {
+            return 0.0;
+        }
+
+        double seconds =
+                durationMs / 1000.0;
+
+        double bits =
+                totalBytesReceived * 8.0;
+
+        return (bits / seconds) / 1000.0;
+    }
+
+    
+
+    public void addReceivedBytes(long bytes) {
+        totalBytesReceived += bytes;
+    }
+
+    public long getTotalBytesReceived() {
+        return totalBytesReceived;
+    }
+
+    public void addRssi(double rssi) {
+
+        rssiHistory.add(rssi);
+    }
+
+    public void addSnr(double snr) {
+        snrHistory.add(snr);
+    }
+
+    public void addLatency(long latencyMs)
+    {
+        latencyHistory.add(latencyMs);
+    }
+
+    public double getAverageSnr() {
+
+        if (snrHistory.isEmpty()) {
+            return 0.0;
+        }
+
+        double sum = 0.0;
+
+        for (double snr : snrHistory) {
+            sum += snr;
+        }
+
+        return sum / snrHistory.size();
+    }
+
+    public double getAverageLatency()
+    {
+        if(latencyHistory.isEmpty())
+        {
+            return 0.0;
+        }
+
+        long sum = 0;
+
+        for(long latency : latencyHistory)
+        {
+            sum += latency;
+        }
+
+        return (double) sum / latencyHistory.size();
+    }
+
+    public double getAverageRssi() {
+
+        if (rssiHistory.isEmpty()) {
+            return 0;
+        }
+
+        double sum = 0;
+
+        for (double rssi : rssiHistory) {
+            sum += rssi;
+        }
+
+        return sum / rssiHistory.size();
+    }
+
+    public int getRssiSamples() {
+
+        return rssiHistory.size();
     }
 
     public boolean isAckRequired() {

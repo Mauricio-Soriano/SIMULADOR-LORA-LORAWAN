@@ -36,6 +36,24 @@ public class MetricsReporter {
             System.out.printf(
                     "PDR=%.2f%%\n",
                     session.getPdr());
+        
+        System.out.printf(
+                "RSSI Avg=%.2f dBm%n",
+                session.getAverageRssi());
+        System.out.printf(
+                "SNR Avg=%.2f dB%n",
+                session.getAverageSnr()
+                );
+
+        System.out.printf(
+                "Throughput=%.2f kbps%n",
+                session.getThroughputKbps()
+                );
+
+        System.out.printf(
+                "Latency Avg=%.2f ms%n",
+                session.getAverageLatency()
+        );
         }
     }
 }

@@ -101,6 +101,9 @@ public class NetworkServer {
                 + gatewayId
                 + " (" + transport + "): "
                 + payload);
+        
+        long rxTimestamp =
+            System.currentTimeMillis();
 
        UplinkContext context =
                 uplinkProcessor.process(payload);
@@ -117,6 +120,18 @@ public class NetworkServer {
         String fcntString =
                 fields.get("FCNT");
 
+            
+        long txTimestamp = 0;
+
+        String txTimeString =
+                fields.get("TXTIME");
+
+        if(txTimeString != null) {
+            txTimestamp =
+                    Long.parseLong(txTimeString);
+        }
+
+
         int currentFcnt =
                 Integer.parseInt(
                         fcntString,
@@ -130,6 +145,15 @@ public class NetworkServer {
 
         DeviceSession session =
             sessionRegistry.getOrCreate(deviceId);
+
+        if(txTimestamp > 0) {
+
+            long latencyMs =
+                    rxTimestamp - txTimestamp;
+
+            session.addLatency(
+                    latencyMs);
+        }
 
         session.incrementPacketsTransmitted();
         
@@ -238,6 +262,13 @@ public class NetworkServer {
             return;
         }
 
+        session.addReceivedBytes(
+            payload.getBytes().length);
+
+        session.addLatency(1);
+        
+        session.registerPacketTimestamp();
+
         System.out.println(
             "[NetworkServer] Payload decodificado: "
             + context.getDecodedPayload());
@@ -261,9 +292,15 @@ if (gateway != null) {
 
     session.setLastRssi(
             result.getRxPowerDbm());
+    
+    session.addRssi(
+        result.getRxPowerDbm());
 
     session.setLastSnr(
             result.getMarginDb());
+
+    session.addSnr(
+        result.getMarginDb());
 
     int recommendedSf =
             adrManager.recommendSpreadingFactor(
@@ -286,6 +323,29 @@ if (gateway != null) {
         + " SNR="
         + result.getMarginDb()
     );
+
+    System.out.printf(
+        "[Metrics] %s SNR Avg=%.2f dB%n",
+        deviceId,
+        session.getAverageSnr()
+    );
+
+    System.out.println(
+        "[Metrics] "
+        + deviceId
+        + " RSSI Avg="
+        + String.format(
+                "%.2f",
+                session.getAverageRssi())
+        + " dBm");
+
+    System.out.printf(
+        "[Metrics] %s Latency Avg=%.2f ms%n",
+        deviceId,
+        session.getAverageLatency()
+    );
+
+    
 }
 
         if (gateway != null) {
@@ -305,10 +365,53 @@ if (gateway != null) {
         return sessionRegistry;
     }
 
+       private double getReceiverSensitivity(int sf) {
+
+        switch (sf) {
+
+            case 7:
+                return -123.0;
+
+            case 8:
+                return -126.0;
+
+            case 9:
+                return -129.0;
+
+            case 10:
+                return -132.0;
+
+            case 11:
+                return -134.5;
+
+            case 12:
+                return -137.0;
+
+            default:
+                return -123.0;
+        }
+    }
+
     public LinkBudgetResult registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
         double dx = gateway.getX();
         double dy = gateway.getY();
         double distanceMeters = Math.sqrt(dx * dx + dy * dy);
+
+        int sf =
+                device.getConfig()
+                        .getSpreadingFactor();
+
+        double receiverSensitivity =
+                getReceiverSensitivity(sf);
+
+        System.out.println(
+            "[LinkBudget] "
+            + device.getDeviceId()
+            + " SF"
+            + sf
+            + " Sens="
+            + receiverSensitivity
+            + " dBm");
 
         LinkBudgetResult result = linkBudgetService.evaluate(
                 device.getDeviceId(),
@@ -316,7 +419,7 @@ if (gateway != null) {
                 distanceMeters,
                 device.getConfig().getFrequencyMHz(),
                 gateway.getMaxTxPowerDBm(),
-                -130.0,
+                receiverSensitivity,
                 los,
                 20.0,
                 30.0,
@@ -341,6 +444,9 @@ if (gateway != null) {
                 result.getMarginDb(),
                 result.isLos()
         );return result;
+        
     }
+
+    
 
 }

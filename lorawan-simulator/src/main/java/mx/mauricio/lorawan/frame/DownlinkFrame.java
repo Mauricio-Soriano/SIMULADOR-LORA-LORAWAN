@@ -30,9 +30,11 @@ public class DownlinkFrame {
             "|ACK=" + ack +
             "|DEV=" + devAddr +
             "|FCNT=" + fCnt +
+            "|TXTIME=" + System.currentTimeMillis() +
             "|FPORT=" + fPort +
             "|DATA=" + frmPayload +
             "|MIC=" + mic;
+            
     }
 
     public boolean isAck() {

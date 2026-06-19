@@ -40,11 +40,16 @@ public class UplinkFrame {
     }
 
     public String toHexString() {
+
+        long txTimestamp =
+                System.currentTimeMillis();
+
         return String.format(
-            "MHDR=%s|DEV=%s|FCNT=%04X|FPORT=%d|DATA=%s|MIC=%s",
+            "MHDR=%s|DEV=%s|FCNT=%04X|TXTIME=%d|FPORT=%d|DATA=%s|MIC=%s",
             mhdr,
             device.getDeviceId(),
             frameCounter,
+            txTimestamp,
             fPort,
             appPayload.getData(),
             mic);
