@@ -20,7 +20,7 @@ public class NetworkServer {
     new DeviceSessionRegistry();
     private final GatewayRegistry gatewayRegistry =
         new GatewayRegistry();
-
+    
 
     private final PerformanceMetricsStore performanceMetricsStore;
     private final UplinkProcessor uplinkProcessor =
@@ -32,11 +32,13 @@ public class NetworkServer {
     private final AdrManager adrManager =
         new AdrManager();
 
+    private boolean adrEnabled = true;
+
     private final DuplicateFrameDetector duplicateDetector =
         new DuplicateFrameDetector();
     
     private final PacketLossSimulator packetLossSimulator =
-        new PacketLossSimulator(0.20);
+        new PacketLossSimulator(false, 0.0);
 
     public NetworkServer() {
         this(new PerformanceMetricsStore(), new LinkBudgetService());
@@ -68,6 +70,15 @@ public class NetworkServer {
         return gatewayRegistry.get(gatewayId);
     }
 
+    public void configureAdr(boolean enabled) {
+
+        this.adrEnabled =
+                enabled;
+
+        System.out.println(
+                "[ADR] enabled="
+                + enabled);
+    }
 
     //Métodos nuevos fase 2.1
     public boolean isGatewayRegistered(String gatewayId) {
@@ -76,6 +87,20 @@ public class NetworkServer {
 
     public int getRegisteredGatewayCount() {
         return gatewayRegistry.size();
+    }
+
+    public void configureRandomPacketLoss(
+            boolean enabled,
+            double probability) {
+
+        packetLossSimulator.setEnabled(enabled);
+        packetLossSimulator.setLossProbability(probability);
+
+        System.out.println(
+                "[PacketLoss] Random loss enabled="
+                + enabled
+                + " probability="
+                + probability);
     }
 
 
@@ -142,30 +167,87 @@ public class NetworkServer {
 
         Device device = getRegisteredDevice(deviceId);
 
+        if (device == null) {
+
+            System.out.println(
+                    "[NetworkServer] Dispositivo no registrado: "
+                    + deviceId);
+
+            return;
+        }
+
 
         DeviceSession session =
             sessionRegistry.getOrCreate(deviceId);
 
-        if(txTimestamp > 0) {
+        
+        session.setCurrentSf(
+            device.getSpreadingFactor());     
 
-            long latencyMs =
+        long latencyMs =
+                -1;
+
+        if (txTimestamp > 0) {
+
+            latencyMs =
                     rxTimestamp - txTimestamp;
-
-            session.addLatency(
-                    latencyMs);
         }
 
-        session.incrementPacketsTransmitted();
-        
+        session.registerTransmissionAttempt(
+        currentFcnt);
+
+        Gateway gateway =
+                getRegisteredGateway(gatewayId);
+
+        if (gateway == null) {
+
+            System.out.println(
+                    "[NetworkServer] Gateway no registrado: "
+                    + gatewayId);
+
+            session.incrementPacketsLost(1);
+
+            return;
+        }
+
+        LinkBudgetResult result =
+                registerTransmissionMetric(
+                        device,
+                        gateway,
+                        true);
+
+        if (isLinkBudgetDrop(device, result)) {
+
+            System.out.println(
+                    "[LinkBudget] PACKET LOST -> "
+                    + deviceId
+                    + " FCNT="
+                    + fields.get("FCNT")
+                    + " rx="
+                    + String.format("%.2f", result.getRxPowerDbm())
+                    + " dBm sens="
+                    + String.format(
+                            "%.2f",
+                            getReceiverSensitivity(
+                                    device.getSpreadingFactor()))
+                    + " dBm");
+
+            session.incrementLinkBudgetLosses(1);
+
+            return;
+        }
+
         if (packetLossSimulator.shouldDrop()) {
 
             System.out.println(
-                    "[NetworkServer] PACKET LOST -> "
+                    "[PacketLoss] RANDOM PACKET LOST -> "
                     + deviceId
                     + " FCNT="
-                    + fields.get("FCNT"));
+                    + fields.get("FCNT")
+                    + " probability="
+                    + packetLossSimulator.getLossProbability());
 
-            session.incrementPacketsLost(1);
+            session.incrementRandomLosses(1);
 
             return;
         }
@@ -188,6 +270,12 @@ public class NetworkServer {
         
         session.incrementPacketsReceived();
 
+        if (latencyMs >= 0) {
+
+            session.addLatency(
+                    latencyMs);
+        }
+
         if (session.getLastFcnt() >= 0) {
 
             int expected =
@@ -195,31 +283,41 @@ public class NetworkServer {
 
             if (currentFcnt > expected) {
 
-                int lost =
+                int gap =
                         currentFcnt - expected;
 
-                session.incrementPacketsLost(lost);
-
                 System.out.println(
-                        "[Metrics] "
-                                + deviceId
-                                + " PDR="
-                                + String.format(
-                                        "%.2f",
-                                        session.getPdr())
-                                + "%");
+                        "[FCnt] Gap detectado en "
+                        + deviceId
+                        + ". Esperado="
+                        + String.format("%04X", expected)
+                        + " recibido="
+                        + String.format("%04X", currentFcnt)
+                        + " faltantes="
+                        + gap
+                        + " (no se suma a Lost para evitar doble conteo)");
             }
         }
 
         session.setLastFcnt(currentFcnt);
 
         System.out.println(
-        "[Metrics] "
-                + deviceId
-                + " Rx="
-                + session.getPacketsReceived()
-                + " Lost="
-                + session.getPacketsLost());
+            "[Metrics] "
+            + deviceId
+            + " TxAttempts="
+            + session.getPacketsTransmitted()
+            + " OriginalMessages="
+            + session.getOriginalMessages()
+            + " Retransmissions="
+            + session.getRetransmissionAttempts()
+            + " Rx="
+            + session.getPacketsReceived()
+            + " Lost="
+            + session.getPacketsLost()
+            + " LinkBudgetLost="
+            + session.getLinkBudgetLosses()
+            + " RandomLost="
+            + session.getRandomLosses());
         
 
 
@@ -253,19 +351,16 @@ public class NetworkServer {
         session.setLastGatewayId(gatewayId);
 
 
-        if (device != null) {
-            System.out.println("[NetworkServer] Dispositivo identificado: " + deviceId);
-            System.out.println("[NetworkServer] Clase del dispositivo: "
-                    + device.getConfig().getDeviceClass());
-        } else {
-            System.out.println("[NetworkServer] Dispositivo no registrado: " + deviceId);
-            return;
-        }
+        System.out.println(
+                "[NetworkServer] Dispositivo identificado: "
+                + deviceId);
+
+        System.out.println(
+                "[NetworkServer] Clase del dispositivo: "
+                + device.getConfig().getDeviceClass());
 
         session.addReceivedBytes(
             payload.getBytes().length);
-
-        session.addLatency(1);
         
         session.registerPacketTimestamp();
 
@@ -277,78 +372,84 @@ public class NetworkServer {
             "[NetworkServer] Fuente decodificada: "
             + context.getDescription());
 
-        Gateway gateway =
-        getRegisteredGateway(gatewayId);
 
-if (gateway != null) {
+        session.setLastGatewayId(gatewayId);
 
-    LinkBudgetResult result =
-            registerTransmissionMetric(
-                    device,
-                    gateway,
-                    true);
+        session.setLastRssi(
+                result.getRxPowerDbm());
 
-    session.setLastGatewayId(gatewayId);
+        session.addRssi(
+                result.getRxPowerDbm());
 
-    session.setLastRssi(
-            result.getRxPowerDbm());
-    
-    session.addRssi(
-        result.getRxPowerDbm());
+        session.setLastSnr(
+                result.getMarginDb());
 
-    session.setLastSnr(
-            result.getMarginDb());
+        session.addSnr(
+                result.getMarginDb());
 
-    session.addSnr(
-        result.getMarginDb());
+        int recommendedSf =
+                session.getCurrentSf();
 
-    int recommendedSf =
-            adrManager.recommendSpreadingFactor(
-                    session.getLastRssi());
+        if (adrEnabled) {
 
-    session.setRecommendedSf(
-            recommendedSf);
+            recommendedSf =
+                    adrManager.recommendSpreadingFactor(
+                            result.getMarginDb());
 
-    System.out.println(
-            "[ADR] "
-            + device.getDeviceId()
-            + " recomendado SF"
-            + recommendedSf);
+            if (recommendedSf != session.getCurrentSf()) {
 
-    System.out.println(
-        "[DeviceSession] "
-        + deviceId
-        + " RSSI="
-        + result.getRxPowerDbm()
-        + " SNR="
-        + result.getMarginDb()
-    );
+                System.out.println(
+                        "[ADR] Recomendación pendiente "
+                        + device.getDeviceId()
+                        + " -> SF"
+                        + recommendedSf);
+            }
 
-    System.out.printf(
-        "[Metrics] %s SNR Avg=%.2f dB%n",
-        deviceId,
-        session.getAverageSnr()
-    );
+            System.out.println(
+                    "[ADR] "
+                    + device.getDeviceId()
+                    + " recomendado SF"
+                    + recommendedSf);
 
-    System.out.println(
-        "[Metrics] "
-        + deviceId
-        + " RSSI Avg="
-        + String.format(
-                "%.2f",
-                session.getAverageRssi())
-        + " dBm");
+        } else {
 
-    System.out.printf(
-        "[Metrics] %s Latency Avg=%.2f ms%n",
-        deviceId,
-        session.getAverageLatency()
-    );
+            System.out.println(
+                    "[ADR] Desactivado para prueba. "
+                    + device.getDeviceId()
+                    + " mantiene SF"
+                    + session.getCurrentSf());
+        }
 
-    
-}
+        session.setRecommendedSf(
+                recommendedSf);
 
-        if (gateway != null) {
+        System.out.println(
+                "[DeviceSession] "
+                + deviceId
+                + " RSSI="
+                + result.getRxPowerDbm()
+                + " SNR="
+                + result.getMarginDb());
+
+        System.out.printf(
+                "[Metrics] %s SNR Avg=%.2f dB%n",
+                deviceId,
+                session.getAverageSnr());
+
+        System.out.println(
+                "[Metrics] "
+                + deviceId
+                + " RSSI Avg="
+                + String.format(
+                        "%.2f",
+                        session.getAverageRssi())
+                + " dBm");
+
+        System.out.printf(
+                "[Metrics] %s Latency Avg=%.2f ms%n",
+                deviceId,
+                session.getAverageLatency());
+
 
             downlinkProcessor.process(
                     device,
@@ -357,12 +458,22 @@ if (gateway != null) {
                     context,
                     transport
             );
-            
-        }
     
     }
     public DeviceSessionRegistry getSessionRegistry() {
         return sessionRegistry;
+    }
+
+    private boolean isLinkBudgetDrop(
+            Device device,
+            LinkBudgetResult result) {
+
+        double receiverSensitivity =
+                getReceiverSensitivity(
+                        device.getSpreadingFactor());
+
+        return result.getRxPowerDbm()
+                < receiverSensitivity;
     }
 
        private double getReceiverSensitivity(int sf) {
@@ -398,8 +509,7 @@ if (gateway != null) {
         double distanceMeters = Math.sqrt(dx * dx + dy * dy);
 
         int sf =
-                device.getConfig()
-                        .getSpreadingFactor();
+            device.getSpreadingFactor();
 
         double receiverSensitivity =
                 getReceiverSensitivity(sf);

@@ -2,21 +2,29 @@ package mx.mauricio.lorawan.network;
 
 public class AdrManager {
 
-    public int recommendSpreadingFactor(
-            double rssi) {
+public int recommendSpreadingFactor(
+            double marginDb) {
 
-        if (rssi > -110) {
+        if (marginDb > 20) {
             return 7;
         }
 
-        if (rssi > -120) {
+        if (marginDb > 10) {
             return 8;
         }
 
-        if (rssi > -130) {
+        if (marginDb > 5) {
             return 9;
         }
 
-        return 10;
+        if (marginDb > 0) {
+            return 10;
+        }
+
+        if (marginDb > -5) {
+            return 11;
+        }
+
+        return 12;
     }
 }

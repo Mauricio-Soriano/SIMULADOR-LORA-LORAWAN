@@ -27,6 +27,14 @@ public class DeviceSession {
 
     private boolean ackRequired;
 
+    private int currentSf = -1;
+
+    private int originalMessages;
+    private int retransmissionAttempts;
+    private int linkBudgetLosses;
+    private int randomLosses;
+    private int lastAttemptedFcnt = -1;
+
     private final List<Double> rssiHistory =
         new ArrayList<>();
 
@@ -83,7 +91,15 @@ public class DeviceSession {
         return (bits / seconds) / 1000.0;
     }
 
-    
+    public int getCurrentSf() {
+        return currentSf;
+    }
+
+    public void setCurrentSf(int currentSf) {
+        this.currentSf = currentSf;
+    }
+
+
 
     public void addReceivedBytes(long bytes) {
         totalBytesReceived += bytes;
@@ -154,10 +170,63 @@ public class DeviceSession {
         return sum / rssiHistory.size();
     }
 
+    public void registerTransmissionAttempt(int fcnt) {
+
+        packetsTransmitted++;
+
+        if (lastAttemptedFcnt == fcnt) {
+
+            retransmissionAttempts++;
+
+        } else {
+
+            originalMessages++;
+            lastAttemptedFcnt = fcnt;
+        }
+    }
+
+    public void incrementLinkBudgetLosses(int count) {
+
+        linkBudgetLosses += count;
+        packetsLost += count;
+    }
+
+    public void incrementRandomLosses(int count) {
+
+        randomLosses += count;
+        packetsLost += count;
+    }
+
+    public int getOriginalMessages() {
+        return originalMessages;
+    }
+
+    public int getRetransmissionAttempts() {
+        return retransmissionAttempts;
+    }
+
+    public int getLinkBudgetLosses() {
+        return linkBudgetLosses;
+    }
+
+    public int getRandomLosses() {
+        return randomLosses;
+    }
+
+    public double getDeliveryRate() {
+
+        if (originalMessages == 0) {
+            return 0.0;
+        }
+
+        return ((double) packetsReceived / originalMessages) * 100.0;
+    }
+
     public int getRssiSamples() {
 
         return rssiHistory.size();
     }
+
 
     public boolean isAckRequired() {
         return ackRequired;

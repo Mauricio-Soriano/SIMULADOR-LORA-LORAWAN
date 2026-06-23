@@ -22,6 +22,7 @@ public class Device {
     private static final int MAX_RETRIES = 3;
     private int retryCount = 0;
     private boolean ackReceived = false;
+    private int currentSpreadingFactor;
 
     public Device(
             String deviceId,
@@ -33,7 +34,9 @@ public class Device {
         this.gateway = gateway;
         this.config = config;
         this.confirmed = confirmed;
-    }
+        this.currentSpreadingFactor =
+            config.getSpreadingFactor();
+        }
 
     public Device(
             String deviceId,
@@ -57,40 +60,56 @@ public class Device {
 
             System.out.println(
                     "[Device "
-                            + deviceId
-                            + "] Retransmisión #"
-                            + retryCount);
+                    + deviceId
+                    + "] Retransmisión #"
+                    + retryCount);
 
             String response =
                     sender.send(payload);
 
-            if (response != null
-                    && response.contains("ACK=true")) {
-
-                ackReceived = true;
-
-                System.out.println(
-                        "[Device "
-                                + deviceId
-                                + "] ACK recibido correctamente");
-
-                break;
-            }
+            processTcpDownlink(response);
         }
-        
 
         if (!ackReceived) {
 
             System.out.println(
                     "[Device "
-                            + deviceId
-                            + "] ACK no recibido tras "
-                            + MAX_RETRIES
-                            + " intentos");
+                    + deviceId
+                    + "] ACK no recibido tras "
+                    + MAX_RETRIES
+                    + " intentos");
         }
     }
 
 
+
+    private void processTcpDownlink(String downlink) {
+
+        if (downlink == null) {
+            return;
+        }
+
+        System.out.println(
+                "[Device "
+                + deviceId
+                + "] Downlink TCP recibido: "
+                + downlink);
+
+        if (downlink.contains("ACK=true")) {
+
+            ackReceived = true;
+
+            System.out.println(
+                    "[Device "
+                    + deviceId
+                    + "] ACK recibido correctamente");
+        }
+
+        if (downlink.contains("ADR:SF")) {
+
+            applyAdrCommand(downlink);
+        }
+    }
 
 
 
@@ -98,11 +117,12 @@ public class Device {
         frameCounter++;
         UplinkFrame frame = new UplinkFrame(this, appPayload);
 
-        System.out.printf("[Device %s %s SF%d] %s%n",
-                deviceId,
-                config.getDeviceClass(),
-                config.getSpreadingFactor(),
-                frame);
+        System.out.printf(
+            "[Device %s %s SF%d] %s%n",
+            deviceId,
+            config.getDeviceClass(),
+            currentSpreadingFactor,
+            frame);
 
         String payload = frame.toHexString();
 
@@ -118,35 +138,25 @@ public class Device {
             TcpSender tcpSender =
                     new TcpSender("127.0.0.1", 6000);
 
+            ackReceived = false;
+            retryCount = 0;
+
             String downlink =
                     tcpSender.send(payload);
 
-            if (downlink != null) {
+            processTcpDownlink(downlink);
 
-                System.out.println(
-                        "[Device " + deviceId +
-                        "] Downlink TCP recibido: "
-                        + downlink);
+            if (confirmed && !ackReceived) {
 
-                if (downlink.contains("ACK=true")) {
-
-                    ackReceived = true;
-
-                    System.out.println(
-                            "[Device "
-                            + deviceId
-                            + "] ACK recibido correctamente");
-
-                }
-                if (confirmed && !ackReceived) {
-
-                    retransmit(
-                            payload,
-                            tcpSender);
-                }
+                retransmit(
+                        payload,
+                        tcpSender);
             }
         }
     }
+
+
+
 
     private void sendUdpAndWaitResponse(String payload) {
         try (DatagramSocket socket = new DatagramSocket()) {
@@ -181,6 +191,11 @@ public class Device {
                             + deviceId
                             + "] Downlink UDP recibido: "
                             + downlink);
+
+            if (downlink.contains("ADR:SF")) {
+
+                applyAdrCommand(downlink);
+            }
 
             Map<String, String> fields =
                     new java.util.HashMap<>();
@@ -224,8 +239,48 @@ public class Device {
         this.confirmed = confirmed;
     }
 
+    public void setSpreadingFactor(
+            int spreadingFactor) {
+
+        this.currentSpreadingFactor =
+                spreadingFactor;
+    }
+
+   private void applyAdrCommand(String downlink) {
+
+        try {
+
+            java.util.regex.Pattern pattern =
+                    java.util.regex.Pattern.compile("ADR:SF(\\d{1,2})");
+
+            java.util.regex.Matcher matcher =
+                    pattern.matcher(downlink);
+
+            if (!matcher.find()) {
+                return;
+            }
+
+            int newSf =
+                    Integer.parseInt(matcher.group(1));
+
+            setSpreadingFactor(newSf);
+
+            System.out.println(
+                    "[Device "
+                    + deviceId
+                    + "] ADR aplicado -> SF"
+                    + newSf);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+        }
+    }
+
     public String getDeviceId() { return deviceId; }
     public LoRaConfig getConfig() { return config; }
     public int getFrameCounter() { return frameCounter; }
-    public int getSpreadingFactor() { return config.getSpreadingFactor(); }
+    public int getSpreadingFactor() {
+    return currentSpreadingFactor;
+ }
 }

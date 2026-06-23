@@ -23,6 +23,8 @@ public class SimulationRunner {
         validateRequest(request);
 
         NetworkServer networkServer = new NetworkServer();
+        networkServer.configureAdr(false);
+        networkServer.configureRandomPacketLoss(true, 0.50);
         GatewayRequest gwRequest = request.getGateway();
 
         Gateway gateway = new Gateway(
@@ -68,6 +70,10 @@ public class SimulationRunner {
                 gateway,
                 config                
             );
+
+            // PRUEBA TEMPORAL PASO 4.1
+            // Forzar SF12 para validar que el Link Budget permite recibir paquetes viables.
+            device.setSpreadingFactor(12);
 
             switch (config.getDeviceClass()) {
 

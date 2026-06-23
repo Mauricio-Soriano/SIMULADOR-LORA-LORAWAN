@@ -21,21 +21,23 @@ public class MetricsReporter {
                     "Device: "
                     + session.getDeviceId());
 
-            System.out.println(
-                    "Tx="
-                    + session.getPacketsTransmitted());
+            System.out.println("TxAttempts=" + session.getPacketsTransmitted());
+                System.out.println("OriginalMessages=" + session.getOriginalMessages());
+                System.out.println("Retransmissions=" + session.getRetransmissionAttempts());
+                System.out.println("Rx=" + session.getPacketsReceived());
+                System.out.println("Lost=" + session.getPacketsLost());
+                System.out.println("LostByLinkBudget=" + session.getLinkBudgetLosses());
+                System.out.println("LostByRandom=" + session.getRandomLosses());
 
-            System.out.println(
-                    "Rx="
-                    + session.getPacketsReceived());
+                System.out.println(
+                        "PDR="
+                        + String.format("%.2f", session.getPdr())
+                        + "%");
 
-            System.out.println(
-                    "Lost="
-                    + session.getPacketsLost());
-
-            System.out.printf(
-                    "PDR=%.2f%%\n",
-                    session.getPdr());
+                System.out.println(
+                        "DeliveryRate="
+                        + String.format("%.2f", session.getDeliveryRate())
+                        + "%");
         
         System.out.printf(
                 "RSSI Avg=%.2f dBm%n",
