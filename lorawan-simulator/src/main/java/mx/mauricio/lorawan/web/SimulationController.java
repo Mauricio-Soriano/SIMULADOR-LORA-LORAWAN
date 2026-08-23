@@ -12,6 +12,7 @@ import mx.mauricio.lorawan.simulator.dto.SimulationResult;
 import mx.mauricio.lorawan.simulator.dto.DeviceRequest;
 import mx.mauricio.lorawan.simulator.dto.GatewayRequest;
 import mx.mauricio.lorawan.config.LoRaConfig;
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
 
 
@@ -151,6 +152,33 @@ public class SimulationController {
 
         simulatorRequest.setSendIntervalMs(
                 webRequest.simulation.sendIntervalMs);
+        
+        simulatorRequest.setAdrEnabled(
+                webRequest.adrEnabled != null
+                        ? webRequest.adrEnabled
+                        : true);
+
+        simulatorRequest.setRandomLossEnabled(
+                webRequest.randomLossEnabled != null
+                        ? webRequest.randomLossEnabled
+                        : false);
+
+        simulatorRequest.setRandomLossProbability(
+                webRequest.randomLossProbability != null
+                        ? webRequest.randomLossProbability
+                        : 0.0);
+        simulatorRequest.setScenarioName(
+                webRequest.scenarioName != null
+                        ? webRequest.scenarioName
+                        : "Escenario personalizado");
+
+        Cost231LinkBudgetParameters linkBudgetParameters =
+                webRequest.linkBudgetParameters != null
+                        ? webRequest.linkBudgetParameters
+                        : new Cost231LinkBudgetParameters();
+
+        simulatorRequest.setLinkBudgetParameters(
+                linkBudgetParameters);
 
         GatewayRequest gateway =
                 new GatewayRequest();

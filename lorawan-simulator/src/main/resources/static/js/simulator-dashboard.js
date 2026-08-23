@@ -32,7 +32,30 @@ const state = {
     },
     deviceCount: 2
   },
+
+  linkBudget: {
+       scenarioName: "COST231_FAVORABLE_NLOS",
+
+
+      adrEnabled: true,
+      randomLossEnabled: false,
+      randomLossProbability: 0.0,
+
+      frequencyMHz: 915.0,
+      los: false,
+      streetWidthMeters: 25.0,
+      hbMeters: 50.0,
+      hrMeters: 1.5,
+      loriDb: 0.0,
+      buildingSeparationMeters: 80.0,
+      kaDb: 30.0,
+      kdDb: 10.0,
+      kfDb: -4.0,
+      lbshDb: 0.0
+    },
+
   devices: [],
+
   result: null,
   errors: {},
   ui: {
@@ -147,27 +170,31 @@ function buildSimulationPayload() {
     const payload = {
       inputFile,
 
+      scenarioName: String(
+        state.linkBudget.scenarioName || "Escenario personalizado"
+      ),
+
       simulation: {
         rowsToProcess: Number(state.topology.rowsToProcess),
         sendIntervalMs: Number(state.topology.sendIntervalMs)
       },
 
-      adrEnabled: true,
-      randomLossEnabled: false,
-      randomLossProbability: 0.0,
+      adrEnabled: Boolean(state.linkBudget.adrEnabled),
+      randomLossEnabled: Boolean(state.linkBudget.randomLossEnabled),
+      randomLossProbability: Number(state.linkBudget.randomLossProbability),
 
       linkBudgetParameters: {
-        frequencyMHz: 915.0,
-        los: false,
-        streetWidthMeters: 25.0,
-        hbMeters: 50.0,
-        hrMeters: 1.5,
-        loriDb: 0.0,
-        buildingSeparationMeters: 80.0,
-        kaDb: 30.0,
-        kdDb: 10.0,
-        kfDb: -4.0,
-        lbshDb: 0.0
+        frequencyMHz: Number(state.linkBudget.frequencyMHz),
+        los: Boolean(state.linkBudget.los),
+        streetWidthMeters: Number(state.linkBudget.streetWidthMeters),
+        hbMeters: Number(state.linkBudget.hbMeters),
+        hrMeters: Number(state.linkBudget.hrMeters),
+        loriDb: Number(state.linkBudget.loriDb),
+        buildingSeparationMeters: Number(state.linkBudget.buildingSeparationMeters),
+        kaDb: Number(state.linkBudget.kaDb),
+        kdDb: Number(state.linkBudget.kdDb),
+        kfDb: Number(state.linkBudget.kfDb),
+        lbshDb: Number(state.linkBudget.lbshDb)
       },
 
       gateway: {
@@ -270,6 +297,37 @@ function validateTopologyStep() {
 
   if (Number(state.topology.deviceCount) <= 0) {
     errors.deviceCount = "Debe haber al menos 1 dispositivo.";
+  }
+
+  if (!String(state.linkBudget.scenarioName || "").trim()) {
+    errors.scenarioName = "El nombre del escenario es obligatorio.";
+  }
+
+    if (Number(state.linkBudget.frequencyMHz) <= 0) {
+    errors.frequencyMHz = "La frecuencia debe ser mayor que 0.";
+  }
+
+  if (Number(state.linkBudget.streetWidthMeters) <= 0) {
+    errors.streetWidthMeters = "El ancho de calle debe ser mayor que 0.";
+  }
+
+  if (Number(state.linkBudget.hbMeters) <= 0) {
+    errors.hbMeters = "La altura hb debe ser mayor que 0.";
+  }
+
+  if (Number(state.linkBudget.hrMeters) <= 0) {
+    errors.hrMeters = "La altura hr debe ser mayor que 0.";
+  }
+
+  if (Number(state.linkBudget.buildingSeparationMeters) <= 0) {
+    errors.buildingSeparationMeters = "La separación entre edificios debe ser mayor que 0.";
+  }
+
+  if (
+    Number(state.linkBudget.randomLossProbability) < 0 ||
+    Number(state.linkBudget.randomLossProbability) > 1
+  ) {
+    errors.randomLossProbability = "La probabilidad debe estar entre 0 y 1.";
   }
 
   return errors;
@@ -389,6 +447,128 @@ function renderFileStep() {
   `;
 }
 
+function renderCost231HelpSection() {
+  return `
+    <details class="parameter-help">
+      <summary>¿Qué significan los parámetros COST231 Walfisch-Ikegami?</summary>
+
+      <div class="help-content">
+        <p>
+          El modelo COST231 Walfisch-Ikegami permite estimar la pérdida de propagación
+          en escenarios urbanos. En este simulador, sus parámetros se usan para calcular
+          la potencia recibida por el gateway y decidir si un paquete LoRaWAN puede ser
+          recibido correctamente.
+        </p>
+
+        <div class="help-grid">
+          <div class="help-item">
+            <h4>Frecuencia (MHz)</h4>
+            <p>
+              Frecuencia de operación del enlace. En general, una frecuencia mayor puede
+              incrementar la pérdida de propagación.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Condición LOS/NLOS</h4>
+            <p>
+              LOS indica línea de vista directa entre dispositivo y gateway. NLOS representa
+              un entorno con obstáculos, como edificios u otras estructuras urbanas.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Ancho de calle</h4>
+            <p>
+              Representa el ancho promedio de la calle o corredor urbano. Afecta el término
+              de difracción desde los edificios hacia el nivel de calle.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Separación entre edificios</h4>
+            <p>
+              Distancia promedio entre edificaciones. Influye en la pérdida adicional
+              asociada a múltiples obstáculos urbanos.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Altura hb</h4>
+            <p>
+              Altura de la antena del gateway o estación base. Modifica la relación entre
+              la antena transmisora/receptora y el entorno urbano.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Altura hr</h4>
+            <p>
+              Altura de la antena del dispositivo final. Normalmente representa un nodo IoT
+              ubicado cerca del nivel del suelo.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>L_ori</h4>
+            <p>
+              Pérdida por orientación de la calle. Representa el efecto del ángulo entre
+              la dirección de propagación y la orientación de la vía urbana.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>L_bsh</h4>
+            <p>
+              Corrección asociada a la altura de edificios y a la relación con la estación
+              base. Se usa dentro del término de difracción multiscreen.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>ka</h4>
+            <p>
+              Coeficiente de ajuste del entorno urbano. Permite modificar la severidad
+              base de la pérdida adicional del modelo.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>kd</h4>
+            <p>
+              Coeficiente asociado a la distancia. Controla cuánto cambia la pérdida
+              conforme aumenta o disminuye la distancia entre dispositivo y gateway.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>kf</h4>
+            <p>
+              Coeficiente asociado a la frecuencia. Ajusta la influencia de la frecuencia
+              sobre la pérdida adicional del entorno urbano.
+            </p>
+          </div>
+
+          <div class="help-item">
+            <h4>Pérdida aleatoria</h4>
+            <p>
+              Simula pérdidas adicionales no explicadas por el presupuesto de enlace,
+              como interferencia, colisiones o errores aleatorios.
+            </p>
+          </div>
+        </div>
+
+        <p class="help-note">
+          Flujo usado por el simulador:
+          parámetros físicos → pérdida de propagación → potencia recibida →
+          margen de enlace → paquete recibido o perdido.
+        </p>
+      </div>
+    </details>
+  `;
+}
+
+
 function renderTopologyStep() {
   return `
     <section class="wizard-step">
@@ -480,6 +660,124 @@ function renderTopologyStep() {
         <input id="tcpPort" type="number" min="1" value="${state.topology.gateway.tcpPort}" />
         ${state.errors.tcpPort ? `<p class="error-text">${escapeHtml(state.errors.tcpPort)}</p>` : ""}
       </div>
+
+      <hr />
+
+      <h3>Parámetros COST231 Walfisch-Ikegami</h3>
+      <p class="hint">
+        Estos valores serán utilizados para calcular la pérdida de propagación y el presupuesto de enlace.
+      </p>
+
+      <div class="field">
+        <label for="scenarioName">Nombre del escenario</label>
+        <input
+          id="scenarioName"
+          type="text"
+          value="${escapeHtml(state.linkBudget.scenarioName)}"
+          placeholder="Ej. COST231_FAVORABLE_NLOS"
+        />
+        ${state.errors.scenarioName ? `<p class="error-text">${escapeHtml(state.errors.scenarioName)}</p>` : ""}
+      </div>
+
+      ${renderCost231HelpSection()}
+
+      <div class="field-row">
+        <div class="field">
+          <label for="adrEnabled">ADR habilitado</label>
+          <select id="adrEnabled">
+            <option value="true" ${state.linkBudget.adrEnabled ? "selected" : ""}>Sí</option>
+            <option value="false" ${!state.linkBudget.adrEnabled ? "selected" : ""}>No</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="randomLossEnabled">Pérdida aleatoria</label>
+          <select id="randomLossEnabled">
+            <option value="true" ${state.linkBudget.randomLossEnabled ? "selected" : ""}>Sí</option>
+            <option value="false" ${!state.linkBudget.randomLossEnabled ? "selected" : ""}>No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="randomLossProbability">Probabilidad de pérdida aleatoria</label>
+        <input id="randomLossProbability" type="number" min="0" max="1" step="0.01" value="${state.linkBudget.randomLossProbability}" />
+        ${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="frequencyMHz">Frecuencia (MHz)</label>
+          <input id="frequencyMHz" type="number" min="1" step="0.1" value="${state.linkBudget.frequencyMHz}" />
+${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+        </div>
+
+        <div class="field">
+          <label for="los">Condición de propagación</label>
+          <select id="los">
+            <option value="true" ${state.linkBudget.los ? "selected" : ""}>LOS</option>
+            <option value="false" ${!state.linkBudget.los ? "selected" : ""}>NLOS</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="streetWidthMeters">Ancho de calle (m)</label>
+          <input id="streetWidthMeters" type="number" min="1" step="0.1" value="${state.linkBudget.streetWidthMeters}" />
+          ${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+        </div>
+
+        <div class="field">
+          <label for="buildingSeparationMeters">Separación entre edificios (m)</label>
+          <input id="buildingSeparationMeters" type="number" min="1" step="0.1" value="${state.linkBudget.buildingSeparationMeters}" />
+          ${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="hbMeters">Altura gateway/base station hb (m)</label>
+          <input id="hbMeters" type="number" min="0.1" step="0.1" value="${state.linkBudget.hbMeters}" />
+          ${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+        </div>
+
+        <div class="field">
+          <label for="hrMeters">Altura dispositivo hr (m)</label>
+          <input id="hrMeters" type="number" min="0.1" step="0.1" value="${state.linkBudget.hrMeters}" />
+          ${state.errors.frequencyMHz ? `<p class="error-text">${escapeHtml(state.errors.frequencyMHz)}</p>` : ""}
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="loriDb">Pérdida por orientación L_ori (dB)</label>
+          <input id="loriDb" type="number" step="0.1" value="${state.linkBudget.loriDb}" />
+        </div>
+
+        <div class="field">
+          <label for="lbshDb">Pérdida L_bsh (dB)</label>
+          <input id="lbshDb" type="number" step="0.1" value="${state.linkBudget.lbshDb}" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="kaDb">ka</label>
+          <input id="kaDb" type="number" step="0.1" value="${state.linkBudget.kaDb}" />
+        </div>
+
+        <div class="field">
+          <label for="kdDb">kd</label>
+          <input id="kdDb" type="number" step="0.1" value="${state.linkBudget.kdDb}" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="kfDb">kf</label>
+        <input id="kfDb" type="number" step="0.1" value="${state.linkBudget.kfDb}" />
+      </div>
+
     </section>
   `;
 }
@@ -581,8 +879,11 @@ function renderResultsStep() {
           <h3>Resumen</h3>
           <ul class="summary-list">
             <li><strong>Archivo:</strong> ${escapeHtml(payload.inputFile || "-")}</li>
-            <li><strong>Filas a procesar:</strong> ${payload.rowsToProcess}</li>
-            <li><strong>Intervalo:</strong> ${payload.sendIntervalMs} ms</li>
+            <li><strong>Escenario:</strong> ${escapeHtml(payload.scenarioName || "-")}</li>
+            <li><strong>Condición:</strong> ${payload.linkBudgetParameters.los ? "LOS" : "NLOS"}</li>
+            <li><strong>Frecuencia:</strong> ${payload.linkBudgetParameters.frequencyMHz} MHz</li>
+            <li><strong>Filas a procesar:</strong> ${payload.simulation.rowsToProcess}</li>
+            <li><strong>Intervalo:</strong> ${payload.simulation.sendIntervalMs} ms</li>
             <li><strong>Gateway:</strong> ${escapeHtml(payload.gateway.gatewayId)}</li>
             <li><strong>UDP:</strong> ${payload.gateway.udpPort}</li>
             <li><strong>TCP:</strong> ${payload.gateway.tcpPort}</li>
@@ -714,6 +1015,59 @@ function bindTopologyEvents() {
   document.getElementById("gatewayY")?.addEventListener("input", e => {
     state.topology.gateway.y = Number(e.target.value);
   });
+
+  document.getElementById("scenarioName")?.addEventListener("input", e => {
+    state.linkBudget.scenarioName = e.target.value;
+    renderSidePanel();
+  });
+
+
+    const linkBudgetFields = [
+      "randomLossProbability",
+      "frequencyMHz",
+      "streetWidthMeters",
+      "hbMeters",
+      "hrMeters",
+      "loriDb",
+      "buildingSeparationMeters",
+      "kaDb",
+      "kdDb",
+      "kfDb",
+      "lbshDb"
+    ];
+
+    linkBudgetFields.forEach(field => {
+      const element = document.getElementById(field);
+
+      if (element) {
+        element.addEventListener("input", event => {
+          state.linkBudget[field] = Number(event.target.value);
+          renderSidePanel();
+        });
+      }
+    });
+
+    const adrEnabled = document.getElementById("adrEnabled");
+    if (adrEnabled) {
+      adrEnabled.addEventListener("change", event => {
+        state.linkBudget.adrEnabled = event.target.value === "true";
+      });
+    }
+
+    const randomLossEnabled = document.getElementById("randomLossEnabled");
+    if (randomLossEnabled) {
+      randomLossEnabled.addEventListener("change", event => {
+        state.linkBudget.randomLossEnabled = event.target.value === "true";
+      });
+    }
+
+    const los = document.getElementById("los");
+    if (los) {
+      los.addEventListener("change", event => {
+        state.linkBudget.los = event.target.value === "true";
+        renderSidePanel();
+      });
+    }
 
   document.getElementById("maxTxPowerDBm")?.addEventListener("input", e => {
     state.topology.gateway.maxTxPowerDBm = Number(e.target.value);
@@ -1087,10 +1441,70 @@ function injectWizardStyles() {
       color: #6b7280;
     }
 
+        .parameter-help {
+      margin: 0 0 18px;
+      padding: 14px 16px;
+      border: 1px solid #d6d3d1;
+      border-radius: 14px;
+      background: #fafaf9;
+    }
+
+    .parameter-help summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .help-content {
+      margin-top: 14px;
+      color: #334155;
+    }
+
+    .help-content p {
+      margin: 0 0 14px;
+      line-height: 1.5;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+      margin-bottom: 12px;
+    }
+
+    .help-item {
+      padding: 12px;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .help-item h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      color: #0f172a;
+    }
+
+    .help-item p {
+      margin: 0;
+      font-size: 13px;
+      color: #475569;
+    }
+
+    .help-note {
+      padding: 12px;
+      border-left: 4px solid #0f766e;
+      background: #ecfdf5;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
     @media (max-width: 900px) {
       .field-row,
-      .results-grid {
-        grid-template-columns: 1fr;
+      .results-grid 
+      .help-grid {
+      grid-template-columns: 1fr;
       }
     }
   `;

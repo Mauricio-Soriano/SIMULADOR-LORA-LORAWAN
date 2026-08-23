@@ -1,6 +1,7 @@
 package mx.mauricio.lorawan.web.dto;
 
 import java.util.List;
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
 public class SimulationRunRequest {
 
@@ -12,6 +13,16 @@ public class SimulationRunRequest {
     public LayoutConfig layout;
     public List<DeviceConfig> devices;
     public ResultOptions resultOptions;
+
+    public Boolean adrEnabled;
+
+    public Boolean randomLossEnabled;
+
+    public Double randomLossProbability;
+
+    public Cost231LinkBudgetParameters linkBudgetParameters;
+
+    public String scenarioName;
 
 
     public static class SimulationConfig {

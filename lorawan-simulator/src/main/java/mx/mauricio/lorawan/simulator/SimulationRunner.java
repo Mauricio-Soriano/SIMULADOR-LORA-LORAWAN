@@ -16,10 +16,20 @@ import mx.mauricio.lorawan.simulator.dto.GatewayRequest;
 import mx.mauricio.lorawan.simulator.dto.SimulationRequest;
 import mx.mauricio.lorawan.simulator.dto.SimulationResult;
 import mx.mauricio.lorawan.source.FuenteInformacion;
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
+
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
 public class SimulationRunner {
 
     public SimulationResult run(SimulationRequest request) {
+
+        System.out.println(
+                "[Scenario] "
+                + (request.getScenarioName() != null
+                        ? request.getScenarioName()
+                        : "Escenario personalizado"));
+
         validateRequest(request);
 
         NetworkServer networkServer = new NetworkServer();
@@ -51,7 +61,40 @@ public class SimulationRunner {
         networkServer.configureRandomPacketLoss(
                 randomLossEnabled,
                 randomLossProbability);
+        Cost231LinkBudgetParameters linkBudgetParameters =
+            request.getLinkBudgetParameters() != null
+                    ? request.getLinkBudgetParameters()
+                    : new Cost231LinkBudgetParameters();
 
+        System.out.println(
+                "[DEBUG REQUEST] linkBudgetParameters null? "
+                + (request.getLinkBudgetParameters() == null));
+
+        System.out.println(
+                "[DEBUG REQUEST] los="
+                + linkBudgetParameters.isLos()
+                + " frequencyMHz="
+                + linkBudgetParameters.getFrequencyMHz()
+                + " hb="
+                + linkBudgetParameters.getHbMeters()
+                + " hr="
+                + linkBudgetParameters.getHrMeters()
+                + " streetWidth="
+                + linkBudgetParameters.getStreetWidthMeters()
+                + " buildingSeparation="
+                + linkBudgetParameters.getBuildingSeparationMeters()
+                + " ka="
+                + linkBudgetParameters.getKaDb()
+                + " kd="
+                + linkBudgetParameters.getKdDb()
+                + " kf="
+                + linkBudgetParameters.getKfDb()
+                + " lbsh="
+                + linkBudgetParameters.getLbshDb());
+
+        networkServer.configureLinkBudgetParameters(
+                linkBudgetParameters);
+        
 
         GatewayRequest gwRequest = request.getGateway();
 

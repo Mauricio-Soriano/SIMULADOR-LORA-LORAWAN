@@ -18,6 +18,8 @@ public class SimulationRequest {
     private Double randomLossProbability = 0.0;
     private Cost231LinkBudgetParameters linkBudgetParameters;
 
+    private String scenarioName;
+
     public SimulationRequest() {
         this.inputFile = "data/t5.csv";
         this.rowsToProcess = 100;
@@ -83,6 +85,14 @@ public class SimulationRequest {
 
     public void setSendIntervalMs(int sendIntervalMs) {
         this.sendIntervalMs = sendIntervalMs;
+    }
+
+    public String getScenarioName() {
+        return scenarioName;
+    }
+
+    public void setScenarioName(String scenarioName) {
+        this.scenarioName = scenarioName;
     }
 
     public GatewayRequest getGateway() {
