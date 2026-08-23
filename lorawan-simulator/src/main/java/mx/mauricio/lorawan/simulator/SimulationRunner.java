@@ -23,8 +23,36 @@ public class SimulationRunner {
         validateRequest(request);
 
         NetworkServer networkServer = new NetworkServer();
-        networkServer.configureAdr(false);
-        networkServer.configureRandomPacketLoss(true, 0.50);
+        boolean adrEnabled =
+                request.getAdrEnabled() != null
+                        ? request.getAdrEnabled()
+                        : true;
+
+        boolean randomLossEnabled =
+                request.getRandomLossEnabled() != null
+                        ? request.getRandomLossEnabled()
+                        : false;
+
+        double randomLossProbability =
+                request.getRandomLossProbability() != null
+                        ? request.getRandomLossProbability()
+                        : 0.0;
+
+        networkServer.configureAdr(
+                adrEnabled);
+
+        if (randomLossProbability < 0.0
+            || randomLossProbability > 1.0) {
+
+        throw new IllegalArgumentException(
+                "randomLossProbability debe estar entre 0.0 y 1.0");
+    }
+
+        networkServer.configureRandomPacketLoss(
+                randomLossEnabled,
+                randomLossProbability);
+
+
         GatewayRequest gwRequest = request.getGateway();
 
         Gateway gateway = new Gateway(
@@ -70,10 +98,6 @@ public class SimulationRunner {
                 gateway,
                 config                
             );
-
-            // PRUEBA TEMPORAL PASO 4.1
-            // Forzar SF12 para validar que el Link Budget permite recibir paquetes viables.
-            device.setSpreadingFactor(12);
 
             switch (config.getDeviceClass()) {
 

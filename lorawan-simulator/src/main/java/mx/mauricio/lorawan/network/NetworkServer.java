@@ -11,6 +11,7 @@ import mx.mauricio.lorawan.performance.LinkBudgetResult;
 import mx.mauricio.lorawan.performance.LinkBudgetService;
 import mx.mauricio.lorawan.performance.PerformanceMetric;
 import mx.mauricio.lorawan.performance.PerformanceMetricsStore;
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
 
 public class NetworkServer {
@@ -39,6 +40,9 @@ public class NetworkServer {
     
     private final PacketLossSimulator packetLossSimulator =
         new PacketLossSimulator(false, 0.0);
+
+    private Cost231LinkBudgetParameters linkBudgetParameters =
+        new Cost231LinkBudgetParameters();
 
     public NetworkServer() {
         this(new PerformanceMetricsStore(), new LinkBudgetService());
@@ -101,6 +105,49 @@ public class NetworkServer {
                 + enabled
                 + " probability="
                 + probability);
+    }
+
+
+    public void configureLinkBudgetParameters(
+            Cost231LinkBudgetParameters linkBudgetParameters) {
+
+        if (linkBudgetParameters == null) {
+
+            this.linkBudgetParameters =
+                    new Cost231LinkBudgetParameters();
+
+        } else {
+
+            linkBudgetParameters.validate();
+
+            this.linkBudgetParameters =
+                    linkBudgetParameters;
+        }
+
+        System.out.println(
+                "[LinkBudgetConfig] COST231"
+                + " frequencyMHz="
+                + this.linkBudgetParameters.getFrequencyMHz()
+                + " los="
+                + this.linkBudgetParameters.isLos()
+                + " streetWidth="
+                + this.linkBudgetParameters.getStreetWidthMeters()
+                + " hb="
+                + this.linkBudgetParameters.getHbMeters()
+                + " hr="
+                + this.linkBudgetParameters.getHrMeters()
+                + " lori="
+                + this.linkBudgetParameters.getLoriDb()
+                + " buildingSeparation="
+                + this.linkBudgetParameters.getBuildingSeparationMeters()
+                + " ka="
+                + this.linkBudgetParameters.getKaDb()
+                + " kd="
+                + this.linkBudgetParameters.getKdDb()
+                + " kf="
+                + this.linkBudgetParameters.getKfDb()
+                + " lbsh="
+                + this.linkBudgetParameters.getLbshDb());
     }
 
 
@@ -193,8 +240,16 @@ public class NetworkServer {
                     rxTimestamp - txTimestamp;
         }
 
-        session.registerTransmissionAttempt(
-        currentFcnt);
+        boolean originalAttempt =
+                session.registerTransmissionAttempt(
+                        currentFcnt);
+
+        if (context.isConfirmed()
+                && originalAttempt) {
+
+            session.registerConfirmedMessage(
+                    currentFcnt);
+        }
 
         Gateway gateway =
                 getRegisteredGateway(gatewayId);
@@ -302,22 +357,28 @@ public class NetworkServer {
         session.setLastFcnt(currentFcnt);
 
         System.out.println(
-            "[Metrics] "
-            + deviceId
-            + " TxAttempts="
-            + session.getPacketsTransmitted()
-            + " OriginalMessages="
-            + session.getOriginalMessages()
-            + " Retransmissions="
-            + session.getRetransmissionAttempts()
-            + " Rx="
-            + session.getPacketsReceived()
-            + " Lost="
-            + session.getPacketsLost()
-            + " LinkBudgetLost="
-            + session.getLinkBudgetLosses()
-            + " RandomLost="
-            + session.getRandomLosses());
+        "[Metrics] "
+        + deviceId
+        + " TxAttempts="
+        + session.getPacketsTransmitted()
+        + " OriginalMessages="
+        + session.getOriginalMessages()
+        + " Retransmissions="
+        + session.getRetransmissionAttempts()
+        + " Rx="
+        + session.getPacketsReceived()
+        + " Lost="
+        + session.getPacketsLost()
+        + " LinkBudgetLost="
+        + session.getLinkBudgetLosses()
+        + " RandomLost="
+        + session.getRandomLosses()
+        + " ConfirmedMessages="
+        + session.getConfirmedMessages()
+        + " ACKReceived="
+        + session.getAckReceived()
+        + " ACKLost="
+        + session.getAckLost());
         
 
 
@@ -508,11 +569,15 @@ public class NetworkServer {
         double dy = gateway.getY();
         double distanceMeters = Math.sqrt(dx * dx + dy * dy);
 
+
         int sf =
             device.getSpreadingFactor();
 
         double receiverSensitivity =
                 getReceiverSensitivity(sf);
+
+        double txPowerDbm =
+            gateway.getMaxTxPowerDBm();
 
         System.out.println(
             "[LinkBudget] "
@@ -523,24 +588,14 @@ public class NetworkServer {
             + receiverSensitivity
             + " dBm");
 
-        LinkBudgetResult result = linkBudgetService.evaluate(
+        LinkBudgetResult result =
+        linkBudgetService.evaluate(
                 device.getDeviceId(),
                 gateway.getGatewayId(),
                 distanceMeters,
-                device.getConfig().getFrequencyMHz(),
-                gateway.getMaxTxPowerDBm(),
+                txPowerDbm,
                 receiverSensitivity,
-                los,
-                20.0,
-                30.0,
-                1.5,
-                0.0,
-                50.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0
-        );
+                linkBudgetParameters);
 
         performanceMetricsStore.add(new PerformanceMetric(System.currentTimeMillis(), result));
 

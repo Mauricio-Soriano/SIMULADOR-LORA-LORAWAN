@@ -36,6 +36,11 @@ public class DownlinkProcessor {
         Map<String, String> fields =
                 context.getFields();
 
+        int uplinkFcnt =
+                Integer.parseInt(
+                        fields.get("FCNT"),
+                        16);
+
         DownlinkPolicy policy =
                 resolvePolicy(device);
 
@@ -79,13 +84,26 @@ public class DownlinkProcessor {
 
         if (ackRequired) {
 
-                System.out.println(
-                        "[NetworkServer] ACK FCntDown="
-                                + fCnt);
+        session.registerAckGenerated(
+                uplinkFcnt);
 
-                System.out.println(
-                        "[NetworkServer] ACK LoRaWAN generado para "
-                                + device.getDeviceId());
+        System.out.println(
+                "[NetworkServer] ACK FCntDown="
+                        + fCnt);
+
+        System.out.println(
+                "[NetworkServer] ACK LoRaWAN generado para "
+                        + device.getDeviceId());
+
+        System.out.println(
+                "[ACK] "
+                + device.getDeviceId()
+                + " ACKGenerated="
+                + session.getAckGenerated()
+                + " ACKReceived="
+                + session.getAckReceived()
+                + " ACKLost="
+                + session.getAckLost());
         }
 
         if (adrCommand != null) {

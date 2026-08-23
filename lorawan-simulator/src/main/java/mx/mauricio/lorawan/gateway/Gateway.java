@@ -13,7 +13,7 @@ public class Gateway {
     private final NetworkServer networkServer;
     private final double x;
     private final double y;
-    private final int maxTxPowerDBm;
+    private final double maxTxPowerDBm;
 
     private TransportContext lastContext = TransportContext.none();
 
@@ -48,7 +48,9 @@ public class Gateway {
     public String getGatewayId() { return gatewayId; }
     public double getX() { return x; }
     public double getY() { return y; }
-    public int getMaxTxPowerDBm() { return maxTxPowerDBm; }
+    public double getMaxTxPowerDBm() {
+        return maxTxPowerDBm;
+    }
 
     public void receiveFromDevice(Device device, String payload) {
         System.out.println("[Gateway " + gatewayId + " @" + x + "," + y

@@ -142,33 +142,51 @@ async function uploadSelectedFile() {
 }
 
 function buildSimulationPayload() {
-  const inputFile = getResolvedInputFile();
+    const inputFile = getResolvedInputFile();
 
-  return {
-    inputFile,
+    const payload = {
+      inputFile,
 
-    simulation: {
+      simulation: {
         rowsToProcess: Number(state.topology.rowsToProcess),
         sendIntervalMs: Number(state.topology.sendIntervalMs)
-    },
+      },
 
-    gateway: {
+      adrEnabled: true,
+      randomLossEnabled: false,
+      randomLossProbability: 0.0,
+
+      linkBudgetParameters: {
+        frequencyMHz: 915.0,
+        los: false,
+        streetWidthMeters: 25.0,
+        hbMeters: 50.0,
+        hrMeters: 1.5,
+        loriDb: 0.0,
+        buildingSeparationMeters: 80.0,
+        kaDb: 30.0,
+        kdDb: 10.0,
+        kfDb: -4.0,
+        lbshDb: 0.0
+      },
+
+      gateway: {
         gatewayId: state.topology.gateway.gatewayId,
         x: Number(state.topology.gateway.x),
         y: Number(state.topology.gateway.y),
         maxTxPowerDBm: Number(state.topology.gateway.maxTxPowerDBm),
         udpPort: Number(state.topology.gateway.udpPort),
         tcpPort: Number(state.topology.gateway.tcpPort)
-    },
+      },
 
-    layout: {
+      layout: {
         mode: state.topology.layout.mode,
         baseX: Number(state.topology.layout.baseX),
         baseY: Number(state.topology.layout.baseY),
         distanceMeters: Number(state.topology.layout.distanceMeters)
-    },
+      },
 
-    devices: state.devices.map(device => ({
+      devices: state.devices.map(device => ({
         deviceId: device.deviceId,
 
         enabled: true,
@@ -176,10 +194,10 @@ function buildSimulationPayload() {
         transport: device.transport,
 
         deviceClass: device.config.includes("CLASS_A")
-            ? "CLASS_A"
-            : device.config.includes("CLASS_B")
-                ? "CLASS_B"
-                : "CLASS_C",
+          ? "CLASS_A"
+          : device.config.includes("CLASS_B")
+            ? "CLASS_B"
+            : "CLASS_C",
 
         config: device.config,
 
@@ -188,12 +206,16 @@ function buildSimulationPayload() {
         columnIndexes: [...device.columnIndexes],
 
         position: {
-            x: 0,
-            y: 0
+          x: 0,
+          y: 0
         }
-    }))
-};
-}
+      }))
+    };
+
+    console.log("Payload de simulación:", payload);
+
+    return payload;
+  }
 
 function validateFileStep() {
   const errors = {};

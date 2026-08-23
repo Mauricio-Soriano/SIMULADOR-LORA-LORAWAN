@@ -13,6 +13,7 @@ public class SimulationRunRequest {
     public List<DeviceConfig> devices;
     public ResultOptions resultOptions;
 
+
     public static class SimulationConfig {
         public int rowsToProcess;
         public int sendIntervalMs;
@@ -55,4 +56,5 @@ public class SimulationRunRequest {
         public boolean includePerDeviceStats;
         public boolean includeTimeline;
     }
+    
 }

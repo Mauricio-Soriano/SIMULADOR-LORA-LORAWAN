@@ -38,6 +38,29 @@ public class MetricsReporter {
                         "DeliveryRate="
                         + String.format("%.2f", session.getDeliveryRate())
                         + "%");
+
+                System.out.println(
+                        "ConfirmedMessages="
+                        + session.getConfirmedMessages());
+
+                System.out.println(
+                        "ACKGenerated="
+                        + session.getAckGenerated());
+
+                System.out.println(
+                        "ACKReceived="
+                        + session.getAckReceived());
+
+                System.out.println(
+                        "ACKLost="
+                        + session.getAckLost());
+
+                System.out.println(
+                        "ConfirmedSuccessRate="
+                        + String.format(
+                                "%.2f",
+                                session.getConfirmedSuccessRate())
+                        + "%");
         
         System.out.printf(
                 "RSSI Avg=%.2f dBm%n",

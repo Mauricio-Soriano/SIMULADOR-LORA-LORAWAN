@@ -35,6 +35,12 @@ public class DeviceSession {
     private int randomLosses;
     private int lastAttemptedFcnt = -1;
 
+    private int confirmedMessages;
+    private int ackGenerated;
+    private int ackReceived;
+    private int lastConfirmedMessageFcnt = -1;
+    private int lastAckedConfirmedFcnt = -1;
+
     private final List<Double> rssiHistory =
         new ArrayList<>();
 
@@ -170,19 +176,71 @@ public class DeviceSession {
         return sum / rssiHistory.size();
     }
 
-    public void registerTransmissionAttempt(int fcnt) {
+    public boolean registerTransmissionAttempt(int fcnt) {
 
         packetsTransmitted++;
 
         if (lastAttemptedFcnt == fcnt) {
 
             retransmissionAttempts++;
-
-        } else {
-
-            originalMessages++;
-            lastAttemptedFcnt = fcnt;
+            return false;
         }
+
+        originalMessages++;
+        lastAttemptedFcnt = fcnt;
+
+        return true;
+    }
+
+    public void registerConfirmedMessage(int fcnt) {
+
+        if (lastConfirmedMessageFcnt == fcnt) {
+            return;
+        }
+
+        confirmedMessages++;
+        lastConfirmedMessageFcnt = fcnt;
+    }
+
+    public void registerAckGenerated(int fcnt) {
+
+        ackGenerated++;
+
+        if (lastAckedConfirmedFcnt == fcnt) {
+            return;
+        }
+
+        ackReceived++;
+        lastAckedConfirmedFcnt = fcnt;
+    }
+
+    public int getConfirmedMessages() {
+        return confirmedMessages;
+    }
+
+    public int getAckGenerated() {
+        return ackGenerated;
+    }
+
+    public int getAckReceived() {
+        return ackReceived;
+    }
+
+    public int getAckLost() {
+
+        int lost =
+                confirmedMessages - ackReceived;
+
+        return Math.max(lost, 0);
+    }
+
+    public double getConfirmedSuccessRate() {
+
+        if (confirmedMessages == 0) {
+            return 0.0;
+        }
+
+        return ((double) ackReceived / confirmedMessages) * 100.0;
     }
 
     public void incrementLinkBudgetLosses(int count) {

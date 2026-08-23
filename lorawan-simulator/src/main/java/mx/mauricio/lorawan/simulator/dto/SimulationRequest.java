@@ -2,6 +2,7 @@ package mx.mauricio.lorawan.simulator.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
 public class SimulationRequest {
 
@@ -10,6 +11,12 @@ public class SimulationRequest {
     private int sendIntervalMs;
     private GatewayRequest gateway;
     private List<DeviceRequest> devices;
+    private Boolean adrEnabled = true;
+
+    private Boolean randomLossEnabled = false;
+
+    private Double randomLossProbability = 0.0;
+    private Cost231LinkBudgetParameters linkBudgetParameters;
 
     public SimulationRequest() {
         this.inputFile = "data/t5.csv";
@@ -17,6 +24,41 @@ public class SimulationRequest {
         this.sendIntervalMs = 150;
         this.gateway = new GatewayRequest();
         this.devices = new ArrayList<>();
+    }
+
+    public Boolean getAdrEnabled() {
+        return adrEnabled;
+    }
+
+    public void setAdrEnabled(Boolean adrEnabled) {
+        this.adrEnabled = adrEnabled;
+    }
+
+    public Cost231LinkBudgetParameters getLinkBudgetParameters() {
+        return linkBudgetParameters;
+    }
+
+    public void setLinkBudgetParameters(
+            Cost231LinkBudgetParameters linkBudgetParameters) {
+
+        this.linkBudgetParameters =
+                linkBudgetParameters;
+    }
+
+    public Boolean getRandomLossEnabled() {
+        return randomLossEnabled;
+    }
+
+    public void setRandomLossEnabled(Boolean randomLossEnabled) {
+        this.randomLossEnabled = randomLossEnabled;
+    }
+
+    public Double getRandomLossProbability() {
+        return randomLossProbability;
+    }
+
+    public void setRandomLossProbability(Double randomLossProbability) {
+        this.randomLossProbability = randomLossProbability;
     }
 
     public String getInputFile() {
