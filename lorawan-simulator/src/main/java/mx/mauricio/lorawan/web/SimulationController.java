@@ -83,10 +83,19 @@ public class SimulationController {
                     simulatorResult.isSuccess();
 
             responseBody.message =
-                    simulatorResult.getMessage();
+                simulatorResult.getMessage();
 
-            responseBody.summary.rowsProcessed =
-                    simulatorResult.getRowsProcessed();
+        responseBody.scenarioName =
+                simulatorResult.getScenarioName();
+
+        if (simulatorResult.getMetrics() != null) {
+
+        responseBody.metrics.addAll(
+                simulatorResult.getMetrics());
+        }
+
+        responseBody.summary.rowsProcessed =
+                simulatorResult.getRowsProcessed();
 
             responseBody.summary.rowsSkipped =
                     simulatorResult.getRowsSkipped();

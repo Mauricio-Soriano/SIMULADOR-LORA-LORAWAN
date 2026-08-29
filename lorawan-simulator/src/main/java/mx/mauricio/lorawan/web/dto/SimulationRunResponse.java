@@ -2,14 +2,18 @@ package mx.mauricio.lorawan.web.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import mx.mauricio.lorawan.simulator.dto.SimulationResult.DeviceMetric;
 
 public class SimulationRunResponse {
     public boolean success;
     public String simulationId;
     public String message;
+    public String scenarioName;
+    
     public Summary summary = new Summary();
     public List<DeviceResult> devices = new ArrayList<>();
     public List<EventItem> events = new ArrayList<>();
+    public List<DeviceMetric> metrics = new ArrayList<>();
 
     public static class Summary {
         public int rowsProcessed;

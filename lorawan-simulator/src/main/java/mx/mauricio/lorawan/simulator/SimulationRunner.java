@@ -162,80 +162,134 @@ public class SimulationRunner {
         int processedRows = 0;
         int skippedRows = 0;
 
-        try {
-            FuenteInformacion fuente = new FuenteInformacion(request.getInputFile());
-            fuente.cargarInformacion();
+        SimulationResult result =
+        new SimulationResult();
 
-            List<String> lineas = fuente.getLineas();
-            int startIndex = detectStartIndex(lineas);
-            int availableRows = Math.max(0, lineas.size() - startIndex);
-            int maxRows = request.getRowsToProcess() > 0
-                ? Math.min(request.getRowsToProcess(), availableRows)
-                : availableRows;
+result.setScenarioName(
+        request.getScenarioName() != null
+                ? request.getScenarioName()
+                : "Escenario personalizado");
 
-            for (int i = 0; i < maxRows; i++) {
-                String linea = lineas.get(startIndex + i);
+    try {
+        FuenteInformacion fuente =
+                new FuenteInformacion(
+                        request.getInputFile());
 
-                if (linea == null || linea.isBlank()) {
-                    skippedRows++;
+        fuente.cargarInformacion();
+
+        List<String> lineas =
+                fuente.getLineas();
+
+        int startIndex =
+                detectStartIndex(lineas);
+
+        int availableRows =
+                Math.max(
+                        0,
+                        lineas.size() - startIndex);
+
+        int maxRows =
+                request.getRowsToProcess() > 0
+                        ? Math.min(
+                                request.getRowsToProcess(),
+                                availableRows)
+                        : availableRows;
+
+        for (int i = 0; i < maxRows; i++) {
+
+            String linea =
+                    lineas.get(
+                            startIndex + i);
+
+            if (linea == null || linea.isBlank()) {
+
+                skippedRows++;
+                continue;
+            }
+
+            for (Device device : devices) {
+
+                DeviceRequest deviceRequest =
+                        findRequestByDeviceId(
+                                enabledDevices,
+                                device.getDeviceId());
+
+                if (deviceRequest == null) {
                     continue;
                 }
 
-                for (Device device : devices) {
-                    DeviceRequest deviceRequest = findRequestByDeviceId(enabledDevices, device.getDeviceId());
+                String payload =
+                        payloadMapper.buildPayload(
+                                linea,
+                                deviceRequest);
 
-                    if (deviceRequest == null) {
-                        continue;
-                    }
-
-                    String payload = payloadMapper.buildPayload(linea, deviceRequest);
-                    device.sendUplink(new ApplicationPayload(payload, deviceRequest.getFPort()));
-                }
-
-                processedRows++;
-                sleepSilently(request.getSendIntervalMs());
+                device.sendUplink(
+                        new ApplicationPayload(
+                                payload,
+                                deviceRequest.getFPort()));
             }
 
-            return new SimulationResult(
-                true,
-                processedRows,
-                skippedRows,
-                devices.size(),
-                "Simulación ejecutada correctamente."
-            );
+            processedRows++;
 
-        } catch (Exception e) {
-            e.printStackTrace();
-
-            return new SimulationResult(
-                false,
-                processedRows,
-                skippedRows,
-                devices.size(),
-                "Error durante la simulación: " + e.getMessage()
-            );
-
-        } finally {
-            System.out.println("\nCerrando servidores...");
-            udpServer.stop();
-            tcpServer.stop();
-
-            udpThread.interrupt();
-            tcpThread.interrupt();
-
-            joinSilently(udpThread, 1000);
-            joinSilently(tcpThread, 1000);
-
-            MetricsReporter reporter =
-                    new MetricsReporter();
-
-            reporter.printReport(
-                    networkServer
-                            .getSessionRegistry()
-                            .getAllSessions());
-
-            System.out.println("Simulation complete.");
+            sleepSilently(
+                    request.getSendIntervalMs());
         }
+
+        result.setSuccess(true);
+        result.setRowsProcessed(processedRows);
+        result.setRowsSkipped(skippedRows);
+        result.setDevicesConfigured(devices.size());
+        result.setMessage("Simulación ejecutada correctamente.");
+
+    } catch (Exception e) {
+
+        e.printStackTrace();
+
+        result.setSuccess(false);
+        result.setRowsProcessed(processedRows);
+        result.setRowsSkipped(skippedRows);
+        result.setDevicesConfigured(devices.size());
+        result.setMessage(
+                "Error durante la simulación: "
+                + e.getMessage());
+
+    } finally {
+
+        System.out.println("\nCerrando servidores...");
+
+        udpServer.stop();
+        tcpServer.stop();
+
+        udpThread.interrupt();
+        tcpThread.interrupt();
+
+        joinSilently(
+                udpThread,
+                1000);
+
+        joinSilently(
+                tcpThread,
+                1000);
+
+        MetricsReporter reporter =
+                new MetricsReporter();
+
+        reporter.printReport(
+                networkServer
+                        .getSessionRegistry()
+                        .getAllSessions());
+
+        result.setMetrics(
+                reporter.buildMetrics(
+                        networkServer
+                                .getSessionRegistry()
+                                .getAllSessions()));
+
+        System.out.println(
+                "Simulation complete.");
+    }
+
+    return result;
     }
 
     private void validateRequest(SimulationRequest request) {

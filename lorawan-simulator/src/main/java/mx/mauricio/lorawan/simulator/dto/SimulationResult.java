@@ -1,5 +1,8 @@
 package mx.mauricio.lorawan.simulator.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class SimulationResult {
 
     private boolean success;
@@ -7,16 +10,55 @@ public class SimulationResult {
     private int rowsSkipped;
     private int devicesConfigured;
     private String message;
+    private String scenarioName;
+
+    private List<DeviceMetric> metrics =
+            new ArrayList<>();
 
     public SimulationResult() {
     }
 
-    public SimulationResult(boolean success, int rowsProcessed, int rowsSkipped, int devicesConfigured, String message) {
+    public SimulationResult(
+            boolean success,
+            int rowsProcessed,
+            int rowsSkipped,
+            int devicesConfigured,
+            String message) {
+
         this.success = success;
         this.rowsProcessed = rowsProcessed;
         this.rowsSkipped = rowsSkipped;
         this.devicesConfigured = devicesConfigured;
         this.message = message;
+    }
+
+    public static class DeviceMetric {
+
+        public String deviceId;
+
+        public int txAttempts;
+        public int originalMessages;
+        public int retransmissions;
+
+        public int rx;
+        public int lost;
+        public int lostByLinkBudget;
+        public int lostByRandom;
+
+        public double pdr;
+        public double deliveryRate;
+
+        public int confirmedMessages;
+        public int ackGenerated;
+        public int ackReceived;
+        public int ackLost;
+        public double confirmedSuccessRate;
+
+        public double rssiAvg;
+        public double linkMarginAvg;
+
+        public double throughputKbps;
+        public double latencyAvgMs;
     }
 
     public boolean isSuccess() {
@@ -57,5 +99,23 @@ public class SimulationResult {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getScenarioName() {
+        return scenarioName;
+    }
+
+    public void setScenarioName(String scenarioName) {
+        this.scenarioName = scenarioName;
+    }
+
+    public List<DeviceMetric> getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(List<DeviceMetric> metrics) {
+        this.metrics = metrics != null
+                ? metrics
+                : new ArrayList<>();
     }
 }

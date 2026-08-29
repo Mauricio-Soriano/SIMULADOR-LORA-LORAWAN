@@ -110,6 +110,179 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function formatNumber(value, decimals = 2) {
+  const number = Number(value);
+
+  if (Number.isNaN(number)) {
+    return "-";
+  }
+
+  return number.toFixed(decimals);
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+
+  if (Number.isNaN(number)) {
+    return "-";
+  }
+
+  return `${number.toFixed(2)}%`;
+}
+
+function clampPercent(value) {
+  const number = Number(value);
+
+  if (Number.isNaN(number)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, number));
+}
+
+function sanitizeFileName(value) {
+  return String(value || "simulacion")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    || "simulacion";
+}
+
+function downloadTextFile(fileName, content, mimeType) {
+  const blob = new Blob([content], {
+    type: mimeType
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const text = String(value);
+
+  if (
+    text.includes(",") ||
+    text.includes("\"") ||
+    text.includes("\n") ||
+    text.includes("\r")
+  ) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+}
+
+function exportResultsJson() {
+  if (!state.result) {
+    alert("Primero ejecuta una simulación.");
+    return;
+  }
+
+  const payload = buildSimulationPayload();
+
+  const exportObject = {
+    exportedAt: new Date().toISOString(),
+    scenarioName: state.result.scenarioName || payload.scenarioName || "Escenario personalizado",
+    request: payload,
+    response: state.result
+  };
+
+  const scenarioName = sanitizeFileName(exportObject.scenarioName);
+
+  downloadTextFile(
+    `${scenarioName}_resultados.json`,
+    JSON.stringify(exportObject, null, 2),
+    "application/json;charset=utf-8"
+  );
+}
+
+function exportMetricsCsv() {
+  const metrics = [...(state.result?.metrics || [])]
+    .sort((a, b) => String(a.deviceId).localeCompare(String(b.deviceId)));
+
+  if (!metrics.length) {
+    alert("No hay métricas disponibles para exportar.");
+    return;
+  }
+
+  const scenarioName =
+    state.result?.scenarioName ||
+    state.linkBudget.scenarioName ||
+    "Escenario personalizado";
+
+  const headers = [
+    "scenarioName",
+    "deviceId",
+    "txAttempts",
+    "originalMessages",
+    "retransmissions",
+    "rx",
+    "lost",
+    "lostByLinkBudget",
+    "lostByRandom",
+    "pdr",
+    "deliveryRate",
+    "confirmedMessages",
+    "ackGenerated",
+    "ackReceived",
+    "ackLost",
+    "confirmedSuccessRate",
+    "rssiAvgDbm",
+    "linkMarginAvgDb",
+    "throughputKbps",
+    "latencyAvgMs"
+  ];
+
+  const rows = metrics.map(metric => [
+    scenarioName,
+    metric.deviceId,
+    metric.txAttempts,
+    metric.originalMessages,
+    metric.retransmissions,
+    metric.rx,
+    metric.lost,
+    metric.lostByLinkBudget,
+    metric.lostByRandom,
+    formatNumber(metric.pdr),
+    formatNumber(metric.deliveryRate),
+    metric.confirmedMessages,
+    metric.ackGenerated,
+    metric.ackReceived,
+    metric.ackLost,
+    formatNumber(metric.confirmedSuccessRate),
+    formatNumber(metric.rssiAvg),
+    formatNumber(metric.linkMarginAvg),
+    formatNumber(metric.throughputKbps),
+    formatNumber(metric.latencyAvgMs)
+  ]);
+
+  const csvContent = [
+    headers.map(escapeCsvValue).join(","),
+    ...rows.map(row => row.map(escapeCsvValue).join(","))
+  ].join("\n");
+
+  const safeScenarioName = sanitizeFileName(scenarioName);
+
+  downloadTextFile(
+    `${safeScenarioName}_metricas.csv`,
+    csvContent,
+    "text/csv;charset=utf-8"
+  );
+}
+
 function onFileSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -866,6 +1039,359 @@ function renderDevicesStep() {
   `;
 }
 
+function buildGlobalMetricsSummary() {
+  const metrics = state.result?.metrics || [];
+
+  if (!metrics.length) {
+    return null;
+  }
+
+  const totals = metrics.reduce((acc, metric) => {
+    acc.devices += 1;
+
+    acc.txAttempts += Number(metric.txAttempts || 0);
+    acc.originalMessages += Number(metric.originalMessages || 0);
+    acc.retransmissions += Number(metric.retransmissions || 0);
+
+    acc.rx += Number(metric.rx || 0);
+    acc.lost += Number(metric.lost || 0);
+    acc.lostByLinkBudget += Number(metric.lostByLinkBudget || 0);
+    acc.lostByRandom += Number(metric.lostByRandom || 0);
+
+    acc.confirmedMessages += Number(metric.confirmedMessages || 0);
+    acc.ackGenerated += Number(metric.ackGenerated || 0);
+    acc.ackReceived += Number(metric.ackReceived || 0);
+    acc.ackLost += Number(metric.ackLost || 0);
+
+    acc.pdr += Number(metric.pdr || 0);
+    acc.deliveryRate += Number(metric.deliveryRate || 0);
+    acc.confirmedSuccessRate += Number(metric.confirmedSuccessRate || 0);
+
+    acc.rssiAvg += Number(metric.rssiAvg || 0);
+    acc.linkMarginAvg += Number(metric.linkMarginAvg || 0);
+    acc.throughputKbps += Number(metric.throughputKbps || 0);
+    acc.latencyAvgMs += Number(metric.latencyAvgMs || 0);
+
+    return acc;
+  }, {
+    devices: 0,
+    txAttempts: 0,
+    originalMessages: 0,
+    retransmissions: 0,
+    rx: 0,
+    lost: 0,
+    lostByLinkBudget: 0,
+    lostByRandom: 0,
+    confirmedMessages: 0,
+    ackGenerated: 0,
+    ackReceived: 0,
+    ackLost: 0,
+    pdr: 0,
+    deliveryRate: 0,
+    confirmedSuccessRate: 0,
+    rssiAvg: 0,
+    linkMarginAvg: 0,
+    throughputKbps: 0,
+    latencyAvgMs: 0
+  });
+
+  const count = totals.devices || 1;
+
+  return {
+    devices: totals.devices,
+    txAttempts: totals.txAttempts,
+    originalMessages: totals.originalMessages,
+    retransmissions: totals.retransmissions,
+    rx: totals.rx,
+    lost: totals.lost,
+    lostByLinkBudget: totals.lostByLinkBudget,
+    lostByRandom: totals.lostByRandom,
+    confirmedMessages: totals.confirmedMessages,
+    ackGenerated: totals.ackGenerated,
+    ackReceived: totals.ackReceived,
+    ackLost: totals.ackLost,
+    avgPdr: totals.rx + totals.lost > 0
+      ? (totals.rx / (totals.rx + totals.lost)) * 100
+      : 0,
+
+    avgDeliveryRate: totals.originalMessages > 0
+      ? (totals.rx / totals.originalMessages) * 100
+      : 0,
+
+    avgConfirmedSuccessRate: totals.confirmedMessages > 0
+      ? (totals.ackReceived / totals.confirmedMessages) * 100
+      : 0,
+    avgRssi: totals.rssiAvg / count,
+    avgLinkMargin: totals.linkMarginAvg / count,
+    totalThroughputKbps: totals.throughputKbps,
+    avgLatencyMs: totals.latencyAvgMs / count
+  };
+}
+
+function renderMetricsCharts() {
+  const metrics = [...(state.result?.metrics || [])]
+    .sort((a, b) => String(a.deviceId).localeCompare(String(b.deviceId)));
+
+  if (!metrics.length) {
+    return "";
+  }
+
+  const maxLost = Math.max(
+    1,
+    ...metrics.map(metric => Number(metric.lost || 0))
+  );
+
+  const maxMargin = Math.max(
+    1,
+    ...metrics.map(metric => Number(metric.linkMarginAvg || 0))
+  );
+
+  return `
+    <article class="summary-card charts-card">
+      <h3>Gráficas de resultados</h3>
+      <p class="muted-text">
+        Visualización rápida de desempeño por dispositivo.
+      </p>
+
+      <div class="charts-grid">
+        <div class="chart-panel">
+          <h4>PDR por dispositivo</h4>
+          ${metrics.map(metric => `
+            <div class="bar-row">
+              <span class="bar-label">${escapeHtml(metric.deviceId)}</span>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: ${clampPercent(metric.pdr)}%;"></div>
+              </div>
+              <span class="bar-value">${formatPercent(metric.pdr)}</span>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="chart-panel">
+          <h4>Delivery Rate por dispositivo</h4>
+          ${metrics.map(metric => `
+            <div class="bar-row">
+              <span class="bar-label">${escapeHtml(metric.deviceId)}</span>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: ${clampPercent(metric.deliveryRate)}%;"></div>
+              </div>
+              <span class="bar-value">${formatPercent(metric.deliveryRate)}</span>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="chart-panel">
+          <h4>Pérdidas por dispositivo</h4>
+          ${metrics.map(metric => {
+            const lost = Number(metric.lost || 0);
+            const width = maxLost > 0 ? (lost / maxLost) * 100 : 0;
+
+            return `
+              <div class="bar-row">
+                <span class="bar-label">${escapeHtml(metric.deviceId)}</span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width: ${clampPercent(width)}%;"></div>
+                </div>
+                <span class="bar-value">
+                  ${lost}
+                  <small>
+                    LB:${metric.lostByLinkBudget ?? 0} / R:${metric.lostByRandom ?? 0}
+                  </small>
+                </span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+
+        <div class="chart-panel">
+          <h4>Margen de enlace promedio</h4>
+          ${metrics.map(metric => {
+            const margin = Number(metric.linkMarginAvg || 0);
+            const width = maxMargin > 0 ? (margin / maxMargin) * 100 : 0;
+
+            return `
+              <div class="bar-row">
+                <span class="bar-label">${escapeHtml(metric.deviceId)}</span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width: ${clampPercent(width)}%;"></div>
+                </div>
+                <span class="bar-value">${formatNumber(margin)} dB</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderMetricsTable() {
+  const metrics = [...(state.result?.metrics || [])]
+    .sort((a, b) => String(a.deviceId).localeCompare(String(b.deviceId)));
+
+  if (!metrics.length) {
+    return "";
+  }
+
+  return `
+    <article class="summary-card metrics-card">
+      <h3>Métricas por dispositivo</h3>
+      <p class="muted-text">
+        Resultados finales calculados por el backend después de ejecutar la simulación.
+      </p>
+
+      <div class="metrics-table-wrap">
+        <table class="metrics-table">
+          <thead>
+            <tr>
+              <th>Dispositivo</th>
+              <th>Tx</th>
+              <th>Originales</th>
+              <th>Retrans.</th>
+              <th>Rx</th>
+              <th>Perdidos</th>
+              <th>Link Budget</th>
+              <th>Aleatoria</th>
+              <th>PDR</th>
+              <th>Delivery</th>
+              <th>Confirmados</th>
+              <th>ACK Gen.</th>
+              <th>ACK Rx</th>
+              <th>ACK Lost</th>
+              <th>Éxito Conf.</th>
+              <th>RSSI Avg</th>
+              <th>Margen Avg</th>
+              <th>Throughput</th>
+              <th>Latencia</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${metrics.map(metric => `
+              <tr>
+                <td><strong>${escapeHtml(metric.deviceId)}</strong></td>
+                <td>${metric.txAttempts ?? 0}</td>
+                <td>${metric.originalMessages ?? 0}</td>
+                <td>${metric.retransmissions ?? 0}</td>
+                <td>${metric.rx ?? 0}</td>
+                <td>${metric.lost ?? 0}</td>
+                <td>${metric.lostByLinkBudget ?? 0}</td>
+                <td>${metric.lostByRandom ?? 0}</td>
+                <td>${formatPercent(metric.pdr)}</td>
+                <td>${formatPercent(metric.deliveryRate)}</td>
+                <td>${metric.confirmedMessages ?? 0}</td>
+                <td>${metric.ackGenerated ?? 0}</td>
+                <td>${metric.ackReceived ?? 0}</td>
+                <td>${metric.ackLost ?? 0}</td>
+                <td>${formatPercent(metric.confirmedSuccessRate)}</td>
+                <td>${formatNumber(metric.rssiAvg)} dBm</td>
+                <td>${formatNumber(metric.linkMarginAvg)} dB</td>
+                <td>${formatNumber(metric.throughputKbps)} kbps</td>
+                <td>${formatNumber(metric.latencyAvgMs)} ms</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
+}
+
+function renderGlobalMetricsSummary() {
+  const summary = buildGlobalMetricsSummary();
+
+  if (!summary) {
+    return "";
+  }
+
+  return `
+    <article class="summary-card global-metrics-card">
+      <h3>Resumen global del escenario</h3>
+      <p class="muted-text">
+        Agregación de las métricas finales reportadas por todos los dispositivos.
+      </p>
+
+      <div class="global-metrics-grid">
+        <div class="global-metric-item">
+          <span class="metric-label">Dispositivos</span>
+          <strong>${summary.devices}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Tx totales</span>
+          <strong>${summary.txAttempts}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Rx totales</span>
+          <strong>${summary.rx}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Perdidos</span>
+          <strong>${summary.lost}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Lost Link Budget</span>
+          <strong>${summary.lostByLinkBudget}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Lost Random</span>
+          <strong>${summary.lostByRandom}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Retransmisiones</span>
+          <strong>${summary.retransmissions}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">PDR promedio</span>
+          <strong>${formatPercent(summary.avgPdr)}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Delivery promedio</span>
+          <strong>${formatPercent(summary.avgDeliveryRate)}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">ACK recibidos</span>
+          <strong>${summary.ackReceived}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Éxito confirmados</span>
+          <strong>${formatPercent(summary.avgConfirmedSuccessRate)}</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">RSSI promedio</span>
+          <strong>${formatNumber(summary.avgRssi)} dBm</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Margen promedio</span>
+          <strong>${formatNumber(summary.avgLinkMargin)} dB</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Throughput total</span>
+          <strong>${formatNumber(summary.totalThroughputKbps)} kbps</strong>
+        </div>
+
+        <div class="global-metric-item">
+          <span class="metric-label">Latencia promedio</span>
+          <strong>${formatNumber(summary.avgLatencyMs)} ms</strong>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+
 function renderResultsStep() {
   const payload = buildSimulationPayload();
 
@@ -897,18 +1423,40 @@ function renderResultsStep() {
           ${state.result ? `
             <div class="result-box ${state.result.success ? "success" : "error"}">
               <p><strong>Éxito:</strong> ${state.result.success ? "Sí" : "No"}</p>
-              <p><strong>Procesadas:</strong> ${state.result.rowsProcessed ?? 0}</p>
-              <p><strong>Omitidas:</strong> ${state.result.rowsSkipped ?? 0}</p>
-              <p><strong>Dispositivos:</strong> ${state.result.devicesConfigured ?? payload.devices.length}</p>
+              <p><strong>Escenario ejecutado:</strong> ${escapeHtml(state.result.scenarioName || payload.scenarioName || "-")}</p>
+              <p><strong>Procesadas:</strong> ${state.result.summary?.rowsProcessed ?? 0}</p>
+              <p><strong>Omitidas:</strong> ${state.result.summary?.rowsSkipped ?? 0}</p>
+              <p><strong>Dispositivos:</strong> ${state.result.summary?.devicesConfigured ?? payload.devices.length}</p>
+              <p><strong>Duración:</strong> ${state.result.summary?.durationMs ?? 0} ms</p>
               <p><strong>Mensaje:</strong> ${escapeHtml(state.result.message || "-")}</p>
             </div>
           ` : `<p>Aún no hay resultado.</p>`}
         </article>
       </div>
-
+      ${renderGlobalMetricsSummary()}
+      ${renderMetricsCharts()}
+      ${renderMetricsTable()}
       <div class="actions-row">
         <button id="runSimulationBtn" type="button" class="primary-action" ${state.ui.busy ? "disabled" : ""}>
           ${state.ui.busy ? "Ejecutando..." : "Ejecutar simulación"}
+        </button>
+
+        <button
+          id="exportJsonBtn"
+          type="button"
+          class="secondary-action"
+          ${!state.result || state.ui.busy ? "disabled" : ""}
+        >
+          Exportar JSON
+        </button>
+
+        <button
+          id="exportCsvBtn"
+          type="button"
+          class="secondary-action"
+          ${!state.result?.metrics?.length || state.ui.busy ? "disabled" : ""}
+        >
+          Exportar CSV
         </button>
       </div>
 
@@ -916,6 +1464,12 @@ function renderResultsStep() {
         <summary>Ver JSON técnico</summary>
         <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
       </details>
+      ${state.result ? `
+        <details class="technical-details">
+          <summary>Ver respuesta del backend</summary>
+          <pre>${escapeHtml(JSON.stringify(state.result, null, 2))}</pre>
+        </details>
+      ` : ""}
     </section>
   `;
 }
@@ -1128,6 +1682,10 @@ function bindDevicesEvents() {
 
 function bindResultsEvents() {
   document.getElementById("runSimulationBtn")?.addEventListener("click", runSimulation);
+
+  document.getElementById("exportJsonBtn")?.addEventListener("click", exportResultsJson);
+
+  document.getElementById("exportCsvBtn")?.addEventListener("click", exportMetricsCsv);
 }
 
 function bindStepSpecificEvents() {
@@ -1262,6 +1820,38 @@ function injectWizardStyles() {
       color: #1f2937;
     }
 
+      .global-metrics-card {
+      margin-top: 18px;
+      margin-bottom: 18px;
+    }
+
+    .global-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .global-metric-item {
+      padding: 14px;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      background: #fafaf9;
+    }
+
+    .global-metric-item .metric-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .global-metric-item strong {
+      display: block;
+      font-size: 18px;
+      color: #0f172a;
+    }
+
     .wizard-step p {
       margin: 0 0 20px;
       color: #5f6b76;
@@ -1378,6 +1968,25 @@ function injectWizardStyles() {
     .primary-action:disabled {
       opacity: 0.7;
       cursor: not-allowed;
+    }
+
+        .secondary-action {
+      padding: 12px 18px;
+      border: 1px solid #0f766e;
+      border-radius: 12px;
+      background: #ffffff;
+      color: #0f766e;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .secondary-action:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .secondary-action:not(:disabled):hover {
+      background: #ecfdf5;
     }
 
     .technical-details {
@@ -1500,9 +2109,127 @@ function injectWizardStyles() {
       font-size: 14px;
     }
 
+        .charts-card {
+      margin-top: 18px;
+      margin-bottom: 18px;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .chart-panel {
+      padding: 16px;
+      border: 1px solid #e7e5e4;
+      border-radius: 14px;
+      background: #fafaf9;
+    }
+
+    .chart-panel h4 {
+      margin: 0 0 14px;
+      font-size: 15px;
+      color: #0f172a;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 110px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .bar-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      height: 12px;
+      border-radius: 999px;
+      background: #e7e5e4;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: #0f766e;
+    }
+
+    .bar-value {
+      font-size: 13px;
+      color: #334155;
+      white-space: nowrap;
+    }
+
+    .bar-value small {
+      color: #64748b;
+      font-size: 11px;
+    }
+
+        .metrics-card {
+      margin-top: 18px;
+      margin-bottom: 18px;
+    }
+
+    .metrics-table-wrap {
+      margin-top: 14px;
+      overflow-x: auto;
+      border: 1px solid #d6d3d1;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 1400px;
+    }
+
+    .metrics-table th,
+    .metrics-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ece7e2;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .metrics-table th {
+      background: #fafaf9;
+      color: #374151;
+      font-weight: 700;
+    }
+
+    .metrics-table tbody tr:hover {
+      background: #f8fafc;
+    }
+
     @media (max-width: 900px) {
       .field-row,
-      .results-grid 
+      .results-grid
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 80px 1fr;
+      }
+
+      .bar-value {
+        grid-column: 2;
+      }
+      .global-metrics-grid {
+        grid-template-columns: 1fr;
+      } 
       .help-grid {
       grid-template-columns: 1fr;
       }
