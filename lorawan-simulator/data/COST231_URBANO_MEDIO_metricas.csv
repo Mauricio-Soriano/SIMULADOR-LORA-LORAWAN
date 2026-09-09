@@ -1,0 +1,5 @@
+scenarioName,deviceId,txAttempts,originalMessages,retransmissions,rx,lost,lostByLinkBudget,lostByRandom,pdr,deliveryRate,confirmedMessages,ackGenerated,ackReceived,ackLost,confirmedSuccessRate,rssiAvgDbm,linkMarginAvgDb,throughputKbps,latencyAvgMs
+COST231_URBANO_MEDIO,device-1,10,10,0,10,0,0,0,100.00,100.00,0,0,0,0,0.00,-88.04,34.96,0.29,7.30
+COST231_URBANO_MEDIO,device-2,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-88.04,35.86,0.26,3.30
+COST231_URBANO_MEDIO,device-3,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-88.04,35.86,0.24,2.30
+COST231_URBANO_MEDIO,device-4,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-88.04,34.96,0.23,2.50

@@ -283,6 +283,21 @@ function exportMetricsCsv() {
   );
 }
 
+function resetSimulationView() {
+  state.result = null;
+  state.errors = {};
+  state.ui.busy = false;
+
+  state.currentStep = 2;
+
+  render();
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
 function onFileSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1458,6 +1473,15 @@ function renderResultsStep() {
         >
           Exportar CSV
         </button>
+
+        <button
+          id="resetSimulationBtn"
+          type="button"
+          class="secondary-action"
+          ${state.ui.busy ? "disabled" : ""}
+        >
+          Nueva simulación
+        </button>
       </div>
 
       <details class="technical-details">
@@ -1686,6 +1710,8 @@ function bindResultsEvents() {
   document.getElementById("exportJsonBtn")?.addEventListener("click", exportResultsJson);
 
   document.getElementById("exportCsvBtn")?.addEventListener("click", exportMetricsCsv);
+
+  document.getElementById("resetSimulationBtn")?.addEventListener("click", resetSimulationView);
 }
 
 function bindStepSpecificEvents() {
@@ -1759,6 +1785,8 @@ async function runSimulation() {
     if (state.file.rawFile && !state.file.uploadedPath) {
       await uploadSelectedFile();
     }
+
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     const payload = buildSimulationPayload();
 

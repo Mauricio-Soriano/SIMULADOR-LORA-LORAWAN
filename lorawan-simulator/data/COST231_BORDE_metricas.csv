@@ -1,0 +1,5 @@
+scenarioName,deviceId,txAttempts,originalMessages,retransmissions,rx,lost,lostByLinkBudget,lostByRandom,pdr,deliveryRate,confirmedMessages,ackGenerated,ackReceived,ackLost,confirmedSuccessRate,rssiAvgDbm,linkMarginAvgDb,throughputKbps,latencyAvgMs
+COST231_BORDE,device-1,10,10,0,10,0,0,0,100.00,100.00,0,0,0,0,0.00,-118.17,9.33,5.14,14.50
+COST231_BORDE,device-2,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-118.17,9.63,5.40,7.60
+COST231_BORDE,device-3,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-118.17,9.63,5.50,1.80
+COST231_BORDE,device-4,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-118.17,9.33,5.21,1.70

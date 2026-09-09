@@ -1,0 +1,215 @@
+{
+  "exportedAt": "2026-08-30T15:58:57.604Z",
+  "scenarioName": "COST231_NO_VIABLE",
+  "request": {
+    "inputFile": "data/uploads/1788105275557_t5.csv",
+    "scenarioName": "COST231_NO_VIABLE",
+    "simulation": {
+      "rowsToProcess": 10,
+      "sendIntervalMs": 20
+    },
+    "adrEnabled": true,
+    "randomLossEnabled": false,
+    "randomLossProbability": 0,
+    "linkBudgetParameters": {
+      "frequencyMHz": 915,
+      "los": false,
+      "streetWidthMeters": 10,
+      "hbMeters": 15,
+      "hrMeters": 1.5,
+      "loriDb": 10,
+      "buildingSeparationMeters": 20,
+      "kaDb": 60,
+      "kdDb": 25,
+      "kfDb": -4,
+      "lbshDb": 20
+    },
+    "gateway": {
+      "gatewayId": "gw-1",
+      "x": 100,
+      "y": 50,
+      "maxTxPowerDBm": 6,
+      "udpPort": 5000,
+      "tcpPort": 6000
+    },
+    "layout": {
+      "mode": "linear",
+      "baseX": 10,
+      "baseY": 20,
+      "distanceMeters": 100
+    },
+    "devices": [
+      {
+        "deviceId": "device-1",
+        "enabled": true,
+        "transport": "UDP",
+        "deviceClass": "CLASS_A",
+        "config": "US915_CLASS_A",
+        "fPort": 1,
+        "columnIndexes": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "deviceId": "device-2",
+        "enabled": true,
+        "transport": "TCP",
+        "deviceClass": "CLASS_B",
+        "config": "US915_CLASS_B",
+        "fPort": 2,
+        "columnIndexes": [
+          4,
+          5,
+          6
+        ],
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "deviceId": "device-3",
+        "enabled": true,
+        "transport": "TCP",
+        "deviceClass": "CLASS_B",
+        "config": "US915_CLASS_B",
+        "fPort": 3,
+        "columnIndexes": [
+          7,
+          8,
+          9
+        ],
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "deviceId": "device-4",
+        "enabled": true,
+        "transport": "TCP",
+        "deviceClass": "CLASS_C",
+        "config": "US915_CLASS_C",
+        "fPort": 4,
+        "columnIndexes": [
+          10,
+          11,
+          12
+        ],
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      }
+    ]
+  },
+  "response": {
+    "success": true,
+    "message": "Simulación ejecutada correctamente.",
+    "scenarioName": "COST231_NO_VIABLE",
+    "summary": {
+      "rowsProcessed": 10,
+      "rowsSkipped": 0,
+      "devicesConfigured": 4,
+      "uplinksSent": 0,
+      "uplinksFailed": 0,
+      "downlinksReceived": 0,
+      "durationMs": 32198
+    },
+    "devices": [],
+    "events": [],
+    "metrics": [
+      {
+        "deviceId": "device-3",
+        "txAttempts": 40,
+        "originalMessages": 10,
+        "retransmissions": 30,
+        "rx": 0,
+        "lost": 40,
+        "lostByLinkBudget": 40,
+        "lostByRandom": 0,
+        "pdr": 0,
+        "deliveryRate": 0,
+        "confirmedMessages": 10,
+        "ackGenerated": 0,
+        "ackReceived": 0,
+        "ackLost": 10,
+        "confirmedSuccessRate": 0,
+        "rssiAvg": 0,
+        "linkMarginAvg": 0,
+        "throughputKbps": 0,
+        "latencyAvgMs": 0
+      },
+      {
+        "deviceId": "device-4",
+        "txAttempts": 40,
+        "originalMessages": 10,
+        "retransmissions": 30,
+        "rx": 0,
+        "lost": 40,
+        "lostByLinkBudget": 40,
+        "lostByRandom": 0,
+        "pdr": 0,
+        "deliveryRate": 0,
+        "confirmedMessages": 10,
+        "ackGenerated": 0,
+        "ackReceived": 0,
+        "ackLost": 10,
+        "confirmedSuccessRate": 0,
+        "rssiAvg": 0,
+        "linkMarginAvg": 0,
+        "throughputKbps": 0,
+        "latencyAvgMs": 0
+      },
+      {
+        "deviceId": "device-1",
+        "txAttempts": 10,
+        "originalMessages": 10,
+        "retransmissions": 0,
+        "rx": 0,
+        "lost": 10,
+        "lostByLinkBudget": 10,
+        "lostByRandom": 0,
+        "pdr": 0,
+        "deliveryRate": 0,
+        "confirmedMessages": 0,
+        "ackGenerated": 0,
+        "ackReceived": 0,
+        "ackLost": 0,
+        "confirmedSuccessRate": 0,
+        "rssiAvg": 0,
+        "linkMarginAvg": 0,
+        "throughputKbps": 0,
+        "latencyAvgMs": 0
+      },
+      {
+        "deviceId": "device-2",
+        "txAttempts": 40,
+        "originalMessages": 10,
+        "retransmissions": 30,
+        "rx": 0,
+        "lost": 40,
+        "lostByLinkBudget": 40,
+        "lostByRandom": 0,
+        "pdr": 0,
+        "deliveryRate": 0,
+        "confirmedMessages": 10,
+        "ackGenerated": 0,
+        "ackReceived": 0,
+        "ackLost": 10,
+        "confirmedSuccessRate": 0,
+        "rssiAvg": 0,
+        "linkMarginAvg": 0,
+        "throughputKbps": 0,
+        "latencyAvgMs": 0
+      }
+    ]
+  }
+}

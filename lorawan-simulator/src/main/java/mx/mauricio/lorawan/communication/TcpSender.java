@@ -28,25 +28,88 @@ public class TcpSender {
     }
 
     public String send(String message) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, port), connectTimeoutMs);
-            socket.setSoTimeout(readTimeoutMs);
 
-            try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
+        int maxAttempts =
+                3;
 
-                out.println(message);
-                return in.readLine();
+        long retryDelayMs =
+                250L;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+
+            try (Socket socket = new Socket()) {
+
+                socket.connect(
+                        new InetSocketAddress(
+                                host,
+                                port),
+                        connectTimeoutMs);
+
+                socket.setSoTimeout(
+                        readTimeoutMs);
+
+                try (PrintWriter out = new PrintWriter(
+                            socket.getOutputStream(),
+                            true,
+                            StandardCharsets.UTF_8);
+
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(
+                                    socket.getInputStream(),
+                                    StandardCharsets.UTF_8))) {
+
+                    out.println(
+                            message);
+
+                    return in.readLine();
+                }
+
+            } catch (ConnectException e) {
+
+                System.out.println(
+                        "[TcpSender] No se pudo conectar al gateway TCP: "
+                        + host
+                        + ":"
+                        + port
+                        + " intento "
+                        + attempt
+                        + "/"
+                        + maxAttempts);
+
+                if (attempt == maxAttempts) {
+                    return null;
+                }
+
+                sleepSilently(
+                        retryDelayMs);
+
+            } catch (SocketTimeoutException e) {
+
+                System.out.println(
+                        "[TcpSender] Timeout esperando respuesta TCP.");
+
+                return null;
+
+            } catch (Exception e) {
+
+                System.out.println(
+                        "[TcpSender] Error TCP: "
+                        + e.getMessage());
+
+                return null;
             }
-        } catch (SocketTimeoutException e) {
-            System.out.println("[TcpSender] Timeout esperando respuesta TCP.");
-            return null;
-        } catch (ConnectException e) {
-            System.out.println("[TcpSender] No se pudo conectar al gateway TCP: " + host + ":" + port);
-            return null;
-        } catch (Exception e) {
-            System.out.println("[TcpSender] Error TCP: " + e.getMessage());
-            return null;
+        }
+
+        return null;
+    }
+    private void sleepSilently(long millis) {
+        try {
+            Thread.sleep(
+                    Math.max(
+                            millis,
+                            0L));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

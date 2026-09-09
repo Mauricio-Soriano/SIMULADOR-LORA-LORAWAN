@@ -1,0 +1,5 @@
+scenarioName,deviceId,txAttempts,originalMessages,retransmissions,rx,lost,lostByLinkBudget,lostByRandom,pdr,deliveryRate,confirmedMessages,ackGenerated,ackReceived,ackLost,confirmedSuccessRate,rssiAvgDbm,linkMarginAvgDb,throughputKbps,latencyAvgMs
+COST231_FAVORABLE_NLOS,device-1,10,10,0,10,0,0,0,100.00,100.00,0,0,0,0,0.00,-76.61,46.39,0.29,6.50
+COST231_FAVORABLE_NLOS,device-2,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-76.61,47.29,0.26,4.60
+COST231_FAVORABLE_NLOS,device-3,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-76.61,47.29,0.24,3.40
+COST231_FAVORABLE_NLOS,device-4,10,10,0,10,0,0,0,100.00,100.00,10,10,10,0,100.00,-76.61,46.39,0.22,6.40
