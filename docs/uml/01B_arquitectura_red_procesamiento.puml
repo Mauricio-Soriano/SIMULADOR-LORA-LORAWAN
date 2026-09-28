@@ -1,0 +1,64 @@
+@startuml
+
+title Arquitectura del simulador - Comunicacion y procesamiento de red
+
+left to right direction
+
+skinparam shadowing false
+skinparam defaultFontSize 19
+skinparam titleFontSize 22
+skinparam classFontSize 19
+skinparam ArrowFontSize 16
+
+skinparam nodesep 25
+skinparam ranksep 25
+
+
+package "Dispositivo final" as PKG_DEVICE {
+
+    class Device
+    class UplinkFrame
+}
+
+
+package "Gateway y transporte" as PKG_GATEWAY {
+
+    class Gateway
+    class UdpGatewayServer
+    class TcpGatewayServer
+}
+
+
+package "Procesamiento del Network Server" as PKG_NETWORK {
+
+    class NetworkServer
+    class UplinkProcessor
+    class DeviceSession
+
+    class PacketLossSimulator
+    class DuplicateFrameDetector
+}
+
+
+Device --> UplinkFrame : construye
+
+Device --> Gateway : envia uplink
+
+Gateway --> UdpGatewayServer : flujo UDP
+Gateway --> TcpGatewayServer : flujo TCP
+
+Gateway --> NetworkServer : entrega uplink
+
+NetworkServer --> UplinkProcessor : procesa
+NetworkServer --> DeviceSession : actualiza estado
+
+NetworkServer --> PacketLossSimulator : evalua perdida
+NetworkServer --> DuplicateFrameDetector : verifica duplicado
+
+
+note bottom of Gateway
+Intermediario entre el
+dispositivo y el servidor.
+end note
+
+@enduml

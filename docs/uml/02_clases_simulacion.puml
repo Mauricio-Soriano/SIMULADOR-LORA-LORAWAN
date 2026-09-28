@@ -1,0 +1,631 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam classFontSize 18
+skinparam classAttributeFontSize 16
+skinparam classMethodFontSize 16
+skinparam classStereotypeFontSize 14
+
+skinparam packageTitleFontSize 18
+
+skinparam ArrowFontSize 15
+skinparam ArrowThickness 1.2
+
+skinparam nodesep 60
+skinparam ranksep 60
+
+title Diagrama de clases — Módulo de simulación LoRaWAN
+
+left to right direction
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype polyline
+
+hide circle
+
+
+/' =====================================================
+   SIMULATOR
+   ===================================================== '/
+
+package "simulator" as PKG_SIM {
+
+    class "SimulationRunner" as SIM_Runner {
+
+        + run(request : SimulationRequest) : SimulationResult
+
+        --
+
+        - validateRequest(request : SimulationRequest) : void
+        - findRequestByDeviceId(requests : List<DeviceRequest>, deviceId : String) : DeviceRequest
+        - detectStartIndex(lineas : List<String>) : int
+        - sleepSilently(millis : int) : void
+        - joinSilently(thread : Thread, timeoutMs : long) : void
+    }
+
+
+    class "PayloadMapper" as SIM_Mapper {
+
+        + buildPayload(csvLine : String, request : DeviceRequest) : String
+
+        --
+
+        - getValue(cols : String[], index : int) : String
+    }
+}
+
+
+/' =====================================================
+   DTO
+   ===================================================== '/
+
+package "sim.dto" as PKG_DTO {
+
+    class "SimulationRequest" as DTO_Request <<DTO>> {
+
+        - inputFile : String
+        - rowsToProcess : int
+        - sendIntervalMs : int
+
+        - gateway : GatewayRequest
+        - devices : List<DeviceRequest>
+
+        - adrEnabled : Boolean
+        - randomLossEnabled : Boolean
+        - randomLossProbability : Double
+
+        - linkBudgetParameters : Cost231LinkBudgetParameters
+
+        - scenarioName : String
+
+        --
+
+        + addDevice(device : DeviceRequest) : void
+    }
+
+
+    class "DeviceRequest" as DTO_Device <<DTO>> {
+
+        - deviceId : String
+        - config : LoRaConfig
+        - fPort : int
+
+        - x : double
+        - y : double
+
+        - eirpDbm : Double
+
+        - enabled : boolean
+
+        - columnIndexes : List<Integer>
+    }
+
+
+    class "GatewayRequest" as DTO_Gateway <<DTO>> {
+
+        - gatewayId : String
+
+        - x : double
+        - y : double
+
+        - maxTxPowerDBm : int
+
+        - udpPort : int
+        - tcpPort : int
+    }
+
+
+    class "SimulationResult" as DTO_Result <<DTO>> {
+
+        - success : boolean
+
+        - rowsProcessed : int
+        - rowsSkipped : int
+
+        - devicesConfigured : int
+
+        - message : String
+        - scenarioName : String
+
+        - metrics : List<DeviceMetric>
+    }
+
+
+    class "SimulationResult.DeviceMetric" as DTO_Metric {
+
+        + deviceId : String
+
+        + txAttempts : int
+        + originalMessages : int
+        + retransmissions : int
+
+        + rx : int
+        + lost : int
+
+        + lostByLinkBudget : int
+        + lostByRandom : int
+
+        + pdr : double
+        + deliveryRate : double
+
+        + confirmedMessages : int
+        + ackReceived : int
+        + ackLost : int
+
+        + rssiAvg : double
+        + linkMarginAvg : double
+
+        + throughputKbps : double
+        + latencyAvgMs : double
+
+        + distanceMeters : double
+        + pathLossDb : double
+        + rxPowerDbm : double
+
+        + los : boolean
+    }
+}
+
+
+/' =====================================================
+   CONFIG
+   ===================================================== '/
+
+package "config" as PKG_CONFIG {
+
+    enum "LoRaConfig" as CFG_LoRa {
+
+        US915_CLASS_A
+        US915_CLASS_B
+        US915_CLASS_C
+
+        EU868_CLASS_A
+        EU868_CLASS_B
+        EU868_CLASS_C
+
+        AS923_CLASS_A
+
+        --
+
+        - frequencyMHz : double
+        - spreadingFactor : int
+        - codingRate : String
+        - deviceClass : DeviceClass
+        - defaultEirpDbm : double
+    }
+
+
+    enum "DeviceClass" as CFG_Class {
+
+        CLASS_A
+        CLASS_B
+        CLASS_C
+
+        --
+
+        - description : String
+    }
+}
+
+
+/' =====================================================
+   SOURCE
+   ===================================================== '/
+
+package "source" as PKG_SOURCE {
+
+    interface "IFuenteVisualizable" as SOURCE_Interface {
+
+        {static} + MAX_ELEMENTOS : int = 10
+
+        + cargarInformacion() : void
+        + eliminarDatos() : void
+        + volverACargar() : void
+    }
+
+
+    class "FuenteInformacion" as SOURCE_Info {
+
+        {static} - FORMATOS_PERMITIDOS : String[]
+
+        - rutaArchivo : Path
+        - lineas : List<String>
+
+        --
+
+        + cargarInformacion() : void
+        + eliminarDatos() : void
+        + volverACargar() : void
+        + getLineas() : List<String>
+
+        --
+
+        - resolverRuta(rutaOriginal : String) : Path
+        - validarFormato() : void
+        - imprimirPreview() : void
+    }
+}
+
+
+/' =====================================================
+   DEVICE
+   ===================================================== '/
+
+package "device" as PKG_DEVICE {
+
+    class "Device" as DEV_Device {
+
+        - deviceId : String
+
+        - gateway : Gateway
+        - config : LoRaConfig
+
+        - x : double
+        - y : double
+
+        - currentEirpDbm : double
+
+        - confirmed : boolean
+
+        - frameCounter : int
+
+        {static} - MAX_RETRIES : int = 3
+
+        - retryCount : int
+        - ackReceived : boolean
+
+        - currentSpreadingFactor : int
+
+        --
+
+        + sendUplink(appPayload : ApplicationPayload) : void
+
+        + setConfirmed(confirmed : boolean) : void
+        + setSpreadingFactor(spreadingFactor : int) : void
+        + setEirpDbm(eirpDbm : double) : void
+
+        --
+
+        - retransmit(payload : String, sender : TcpSender) : void
+        - processTcpDownlink(downlink : String) : void
+        - sendUdpAndWaitResponse(payload : String) : void
+        - applyAdrCommand(downlink : String) : void
+    }
+}
+
+
+/' =====================================================
+   FRAME
+   ===================================================== '/
+
+package "frame" as PKG_FRAME {
+
+    class "ApplicationPayload" as FRAME_App {
+
+        - data : String
+        - fPort : int
+    }
+
+
+    class "UplinkFrame" as FRAME_Uplink {
+
+        - device : Device
+
+        - appPayload : ApplicationPayload
+
+        - frameCounter : int
+
+        - mhdr : String
+        - fPort : int
+        - mic : String
+
+        --
+
+        + toHexString() : String
+        + toString() : String
+    }
+}
+
+
+/' =====================================================
+   GATEWAY
+   ===================================================== '/
+
+package "gateway" as PKG_GATEWAY {
+
+    class "Gateway" as GW_Gateway {
+
+        - gatewayId : String
+
+        - networkServer : NetworkServer
+
+        - x : double
+        - y : double
+
+        - maxTxPowerDBm : double
+
+        - lastContext : TransportContext
+
+        --
+
+        + receiveUdpMessage(...) : void
+        + receiveTcpMessage(...) : void
+
+        + receiveFromDevice(device : Device, payload : String) : void
+
+        + sendDownlink(payload : String, transport : String) : void
+    }
+
+
+    class "TransportContext" as GW_Context {
+
+        - type : Type
+
+        - senderIp : String
+        - senderPort : int
+
+        - udpServer : UdpGatewayServer
+        - tcpSocket : Socket
+
+        --
+
+        {static} + udp(...) : TransportContext
+        {static} + tcp(...) : TransportContext
+        {static} + none() : TransportContext
+
+        + isUdp() : boolean
+        + isTcp() : boolean
+    }
+
+
+    enum "TransportContext.Type" as GW_ContextType {
+
+        UDP
+        TCP
+        NONE
+    }
+}
+
+
+/' =====================================================
+   COMMUNICATION
+   ===================================================== '/
+
+package "communication" as PKG_COMM {
+
+    class "UdpGatewayServer" as COMM_UDP <<Runnable>> {
+
+        - port : int
+
+        - gateway : Gateway
+
+        - running : boolean
+
+        - socket : DatagramSocket
+
+        --
+
+        + run() : void
+        + sendDownlink(payload : String, ip : String, port : int) : void
+        + stop() : void
+    }
+
+
+    class "TcpGatewayServer" as COMM_TCP <<Runnable>> {
+
+        - port : int
+
+        - gateway : Gateway
+
+        - running : boolean
+
+        - serverSocket : ServerSocket
+
+        --
+
+        + run() : void
+        + stop() : void
+
+        --
+
+        - handleClient(clientSocket : Socket) : void
+        - closeServerSocket() : void
+    }
+
+
+    class "TcpSender" as COMM_Sender {
+
+        - host : String
+
+        - port : int
+
+        - connectTimeoutMs : int
+        - readTimeoutMs : int
+
+        --
+
+        + send(message : String) : String
+
+        --
+
+        - sleepSilently(millis : long) : void
+    }
+}
+
+
+/' =====================================================
+   NETWORK
+   ===================================================== '/
+
+package "network" as PKG_NETWORK {
+
+    class "NetworkServer" as NET_Server <<resumen>> {
+
+        + registerDevice(device : Device) : void
+        + registerGateway(gateway : Gateway) : void
+
+        + configureAdr(enabled : boolean) : void
+
+        + configureRandomPacketLoss(enabled : boolean, probability : double) : void
+
+        + configureLinkBudgetParameters(...) : void
+
+        + receiveFromGateway(...) : void
+    }
+}
+
+
+/' =====================================================
+   METRICS
+   ===================================================== '/
+
+package "metrics" as PKG_METRICS {
+
+    class "MetricsReporter" as MET_Reporter {
+
+        + printReport(...) : void
+
+        + buildMetrics(...) : List<SimulationResult.DeviceMetric>
+    }
+}
+
+
+/' =====================================================
+   PERFORMANCE
+   ===================================================== '/
+
+package "performance" as PKG_PERF {
+
+    class "Cost231LinkBudgetParameters" as PERF_COST231 <<resumen>>
+}
+
+
+/' =====================================================
+   RELACIONES DTO
+   ===================================================== '/
+
+DTO_Request "1" o-- "1" DTO_Gateway : gateway
+
+DTO_Request "1" o-- "0..*" DTO_Device : devices
+
+DTO_Request --> PERF_COST231 : COST231
+
+DTO_Device --> CFG_LoRa : config
+
+DTO_Result "1" o-- "0..*" DTO_Metric : metrics
+
+
+/' =====================================================
+   CONFIGURACIÓN
+   ===================================================== '/
+
+CFG_LoRa --> CFG_Class : deviceClass
+
+
+/' =====================================================
+   FUENTE DE INFORMACIÓN
+   ===================================================== '/
+
+SOURCE_Info ..|> SOURCE_Interface
+
+
+/' =====================================================
+   SIMULATION RUNNER
+   ===================================================== '/
+
+SIM_Runner ..> DTO_Request : recibe
+
+SIM_Runner ..> DTO_Result : retorna
+
+
+
+SIM_Runner ..> SIM_Mapper : usa
+
+SIM_Runner ..> SOURCE_Info : carga archivo
+
+SIM_Runner ..> NET_Server : crea / configura
+
+SIM_Runner ..> GW_Gateway : crea
+
+SIM_Runner ..> DEV_Device : crea / registra
+
+
+
+SIM_Runner ..> MET_Reporter : genera métricas
+
+
+/' =====================================================
+   DEVICE
+   ===================================================== '/
+
+DEV_Device --> GW_Gateway : gateway
+
+DEV_Device --> CFG_LoRa : config
+
+DEV_Device ..> FRAME_App : recibe
+
+
+
+DEV_Device ..> COMM_Sender : usa TCP
+
+
+/' =====================================================
+   FRAME
+   ===================================================== '/
+
+FRAME_Uplink --> DEV_Device : device
+
+FRAME_Uplink --> FRAME_App : appPayload
+
+
+/' =====================================================
+   GATEWAY
+   ===================================================== '/
+
+GW_Gateway --> NET_Server : networkServer
+
+GW_Gateway --> GW_Context : lastContext
+
+GW_Context --> GW_ContextType : type
+
+GW_Context --> COMM_UDP : udpServer
+
+
+/' =====================================================
+   SERVIDORES DE TRANSPORTE
+   ===================================================== '/
+
+COMM_UDP --> GW_Gateway : gateway
+
+COMM_TCP --> GW_Gateway : gateway
+
+
+/' =====================================================
+   MÉTRICAS
+   ===================================================== '/
+
+MET_Reporter ..> DTO_Metric : construye
+
+
+/' =====================================================
+   LEYENDA
+   ===================================================== '/
+
+legend bottom
+  |= Símbolo |= Significado |
+  | --> | Asociación / referencia estructural |
+  | ..> | Dependencia de uso |
+  | o-- | Agregación |
+  | + | Público |
+  | - | Privado |
+endlegend
+
+
+@enduml

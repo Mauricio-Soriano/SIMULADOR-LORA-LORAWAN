@@ -1,0 +1,200 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam classFontSize 18
+skinparam classAttributeFontSize 16
+skinparam classMethodFontSize 16
+skinparam classStereotypeFontSize 14
+
+skinparam packageTitleFontSize 18
+
+skinparam ArrowFontSize 15
+skinparam ArrowThickness 1.2
+
+skinparam nodesep 60
+skinparam ranksep 60
+
+
+title Arquitectura general del simulador LoRaWAN
+
+left to right direction
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype polyline
+
+
+package "Interfaz de usuario" as PKG_UI {
+
+    class "simulator-dashboard.html" as UI_HTML <<Frontend>>
+    class "simulator-dashboard.js" as UI_JS <<Frontend>>
+
+}
+
+
+package "Configuración y simulación" as PKG_SIM {
+
+    class "SimulationRequest" as SIM_Request <<DTO>>
+    class "SimulationRunner" as SIM_Runner
+    class "PayloadMapper" as SIM_Mapper
+    class "FuenteInformacion" as SIM_Source
+
+}
+
+
+package "Dispositivo final" as PKG_DEVICE {
+
+    class "Device" as DEV_Device
+    class "UplinkFrame" as DEV_UplinkFrame
+    class "ApplicationPayload" as DEV_AppPayload
+
+}
+
+
+package "Gateway" as PKG_GATEWAY {
+
+    class "Gateway" as GW_Gateway
+    class "UdpGatewayServer" as GW_UDP
+    class "TcpGatewayServer" as GW_TCP
+
+}
+
+
+package "Network Server" as PKG_NS {
+
+    class "NetworkServer" as NS_Server
+    class "UplinkProcessor" as NS_Uplink
+    class "DeviceSession" as NS_Session
+    class "DownlinkProcessor" as NS_Downlink
+    class "AdrManager" as NS_ADR
+    class "PacketLossSimulator" as NS_Loss
+    class "DuplicateFrameDetector" as NS_Duplicate
+
+}
+
+
+package "Rendimiento del enlace" as PKG_LINK {
+
+    class "LinkBudgetService" as LB_Service
+    class "Cost231WalfischIkegamiModel" as LB_COST231
+    class "Cost231LinkBudgetParameters" as LB_Parameters
+    class "LinkBudgetResult" as LB_Result
+
+}
+
+
+package "Resultados" as PKG_RESULTS {
+
+    class "MetricsReporter" as RES_Reporter
+    class "PerformanceMetricsStore" as RES_Store
+
+}
+
+
+/' =========================
+   FRONTEND
+   ========================= '/
+
+UI_HTML --> UI_JS
+
+UI_JS ..> SIM_Request : configura
+
+
+/' =========================
+   EJECUCIÓN DE SIMULACIÓN
+   ========================= '/
+
+SIM_Runner ..> SIM_Request : recibe
+
+SIM_Runner ..> SIM_Source : carga archivo
+
+SIM_Runner ..> SIM_Mapper : genera payload
+
+SIM_Runner ..> NS_Server : crea / configura
+
+SIM_Runner ..> GW_Gateway : crea
+
+SIM_Runner ..> GW_UDP : inicia
+
+SIM_Runner ..> GW_TCP : inicia
+
+SIM_Runner ..> DEV_Device : crea
+
+
+/' =========================
+   DISPOSITIVO
+   ========================= '/
+
+DEV_Device --> GW_Gateway : conoce
+
+DEV_Device ..> DEV_UplinkFrame : construye
+
+DEV_Device ..> DEV_AppPayload : recibe
+
+
+/' =========================
+   GATEWAY
+   ========================= '/
+
+GW_UDP --> GW_Gateway : entrega UDP
+
+GW_TCP --> GW_Gateway : entrega TCP
+
+GW_Gateway --> NS_Server : entrega uplink
+
+
+/' =========================
+   NETWORK SERVER
+   ========================= '/
+
+NS_Server ..> NS_Uplink : procesa trama
+
+NS_Server ..> NS_Session : mantiene estado
+
+NS_Server --> NS_ADR : evalúa ADR
+
+NS_Server --> NS_Loss : pérdida aleatoria
+
+NS_Server --> NS_Duplicate : detecta duplicados
+
+NS_Server --> NS_Downlink : procesa downlink
+
+
+/' =========================
+   LINK BUDGET
+   ========================= '/
+
+NS_Server --> LB_Service : evalúa enlace
+
+LB_Service --> LB_COST231 : calcula pérdidas
+
+LB_Service ..> LB_Parameters : usa parámetros
+
+LB_Service ..> LB_Result : genera resultado
+
+
+/' =========================
+   DOWNLINK
+   ========================= '/
+
+NS_Downlink --> GW_Gateway : solicita downlink
+
+GW_Gateway --> DEV_Device : downlink
+
+
+/' =========================
+   MÉTRICAS
+   ========================= '/
+
+NS_Server --> RES_Store : almacena métricas
+
+SIM_Runner ..> RES_Reporter : genera reporte
+
+
+@enduml

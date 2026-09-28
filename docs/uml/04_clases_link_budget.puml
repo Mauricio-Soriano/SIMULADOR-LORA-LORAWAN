@@ -1,0 +1,255 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam classFontSize 18
+skinparam classAttributeFontSize 16
+skinparam classMethodFontSize 16
+skinparam classStereotypeFontSize 14
+
+skinparam packageTitleFontSize 18
+
+skinparam ArrowFontSize 15
+skinparam ArrowThickness 1.2
+
+skinparam nodesep 60
+skinparam ranksep 60
+
+title Diagrama de clases — Link Budget y COST231 Walfisch-Ikegami
+
+top to bottom direction
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype polyline
+skinparam nodesep 45
+skinparam ranksep 55
+
+hide circle
+
+
+/' =====================================================
+   NETWORK
+   ===================================================== '/
+
+package "network" as PKG_NETWORK {
+
+    class "NetworkServer" as NS_Server <<resumen>> {
+
+        - linkBudgetService : LinkBudgetService
+        - performanceMetricsStore : PerformanceMetricsStore
+        - linkBudgetParameters : Cost231LinkBudgetParameters
+
+        --
+
+        + configureLinkBudgetParameters(parameters : Cost231LinkBudgetParameters) : void
+
+        + registerTransmissionMetric(device : Device, gateway : Gateway) : LinkBudgetResult
+    }
+}
+
+
+/' =====================================================
+   PERFORMANCE
+   ===================================================== '/
+
+package "performance" as PKG_PERF {
+
+    class "LinkBudgetService" as PERF_Service {
+
+        - model : Cost231WalfischIkegamiModel
+
+        --
+
+        + LinkBudgetService()
+
+        + LinkBudgetService(model : Cost231WalfischIkegamiModel)
+
+        + evaluate(...) : LinkBudgetResult
+    }
+
+
+    class "Cost231WalfischIkegamiModel" as PERF_Model {
+
+        + calculateFreeSpaceLossDb(...) : double
+
+        + calculateLoSPathLossDb(...) : double
+
+        + calculateStreetOrientationLossDb(...) : double
+
+        + calculateBaseStationHeightLossDb(...) : double
+
+        + calculateKaDb(...) : double
+
+        + calculateKdDb(...) : double
+
+        + calculateKfDb(...) : double
+
+        + calculateLrtsFromPhysicalParametersDb(...) : double
+
+        + calculateLmsdFromPhysicalParametersDb(...) : double
+
+        + calculateNLoSPathLossFromPhysicalParametersDb(...) : double
+
+        + calculatePathLossDb(distanceMeters : double, parameters : Cost231LinkBudgetParameters) : double
+    }
+
+
+    class "Cost231LinkBudgetParameters" as PERF_Params {
+
+        - frequencyMHz : double
+
+        - los : boolean
+
+        - streetWidthMeters : double
+
+        - buildingSeparationMeters : double
+
+        - baseStationHeightMeters : double
+
+        - averageBuildingHeightMeters : double
+
+        - mobileStationHeightMeters : double
+
+        - streetOrientationDegrees : double
+
+        - urbanEnvironment : UrbanEnvironment
+
+        --
+
+        + validate() : void
+    }
+
+
+    enum "UrbanEnvironment" as PERF_Env {
+
+        MEDIUM_SIZE_CITY
+
+        DOWNTOWN
+    }
+
+
+    class "LinkBudgetResult" as PERF_Result {
+
+        - deviceId : String
+
+        - gatewayId : String
+
+        - distanceMeters : double
+
+        - pathLossDb : double
+
+        - txPowerDbm : double
+
+        - rxPowerDbm : double
+
+        - sensitivityDbm : double
+
+        - marginDb : double
+
+        - los : boolean
+
+        --
+
+        + toCsvRow() : String
+    }
+
+
+    class "PerformanceMetric" as PERF_Metric {
+
+        - timestampMillis : long
+
+        - linkBudgetResult : LinkBudgetResult
+    }
+
+
+    class "PerformanceMetricsStore" as PERF_Store {
+
+        - metrics : List<PerformanceMetric>
+
+        --
+
+        + add(metric : PerformanceMetric) : void
+
+        + getAll() : List<PerformanceMetric>
+
+        + size() : int
+
+        + clear() : void
+    }
+}
+
+
+/' =====================================================
+   NETWORK SERVER
+   ===================================================== '/
+
+NS_Server o-- PERF_Service : usa
+
+NS_Server o-- PERF_Store : almacena
+
+NS_Server --> PERF_Params : configura
+
+NS_Server ..> PERF_Result : obtiene
+
+NS_Server ..> PERF_Metric : crea
+
+
+/' =====================================================
+   LINK BUDGET SERVICE
+   ===================================================== '/
+
+PERF_Service o-- PERF_Model : modelo
+
+PERF_Service ..> PERF_Params : valida / usa
+
+PERF_Service ..> PERF_Result : genera
+
+
+/' =====================================================
+   COST231 WALSIFCH-IKEGAMI
+   ===================================================== '/
+
+PERF_Model ..> PERF_Params : usa parámetros
+
+PERF_Model ..> PERF_Env : usa entorno
+
+PERF_Params --> PERF_Env : urbanEnvironment
+
+
+/' =====================================================
+   MÉTRICAS
+   ===================================================== '/
+
+PERF_Store "1" o-- "0..*" PERF_Metric : metrics
+
+PERF_Metric --> PERF_Result : linkBudgetResult
+
+
+/' =====================================================
+   LEYENDA
+   ===================================================== '/
+
+legend bottom
+
+  |= Símbolo |= Significado |
+
+  | --> | Asociación / referencia estructural |
+
+  | ..> | Dependencia de uso |
+
+  | o-- | Agregación |
+
+  | + | Público |
+
+  | - | Privado |
+
+endlegend
+
+
+@enduml

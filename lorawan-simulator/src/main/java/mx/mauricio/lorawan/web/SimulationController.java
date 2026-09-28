@@ -60,7 +60,9 @@ public class SimulationController {
             System.out.println("validationError = " + validationError);
             if (validationError != null) {
                 response.status(400);
-                System.out.println("VALIDACION OK");
+                System.out.println(
+                        "VALIDACION FALLIDA: "
+                        + validationError);
                 return JsonUtil.toJson(new ErrorResponse(false, validationError));
             }
             long start = System.currentTimeMillis();
@@ -235,6 +237,9 @@ public class SimulationController {
                         webDevice.position.y);
             }
 
+            device.setEirpDbm(
+                    webDevice.eirpDbm);
+
             device.setColumnIndexes(
                     webDevice.columnIndexes);
 
@@ -275,6 +280,9 @@ public class SimulationController {
 
             case "EU868_CLASS_C":
                 return LoRaConfig.EU868_CLASS_C;
+
+            case "AS923_CLASS_A":
+                return LoRaConfig.AS923_CLASS_A;
 
             default:
                 return LoRaConfig.US915_CLASS_A;

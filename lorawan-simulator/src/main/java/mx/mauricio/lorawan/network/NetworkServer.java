@@ -130,24 +130,20 @@ public class NetworkServer {
                 + this.linkBudgetParameters.getFrequencyMHz()
                 + " los="
                 + this.linkBudgetParameters.isLos()
-                + " streetWidth="
+                + " streetWidthMeters="
                 + this.linkBudgetParameters.getStreetWidthMeters()
-                + " hb="
-                + this.linkBudgetParameters.getHbMeters()
-                + " hr="
-                + this.linkBudgetParameters.getHrMeters()
-                + " lori="
-                + this.linkBudgetParameters.getLoriDb()
-                + " buildingSeparation="
+                + " baseStationHeightMeters="
+                + this.linkBudgetParameters.getBaseStationHeightMeters()
+                + " averageBuildingHeightMeters="
+                + this.linkBudgetParameters.getAverageBuildingHeightMeters()
+                + " mobileStationHeightMeters="
+                + this.linkBudgetParameters.getMobileStationHeightMeters()
+                + " streetOrientationDegrees="
+                + this.linkBudgetParameters.getStreetOrientationDegrees()
+                + " buildingSeparationMeters="
                 + this.linkBudgetParameters.getBuildingSeparationMeters()
-                + " ka="
-                + this.linkBudgetParameters.getKaDb()
-                + " kd="
-                + this.linkBudgetParameters.getKdDb()
-                + " kf="
-                + this.linkBudgetParameters.getKfDb()
-                + " lbsh="
-                + this.linkBudgetParameters.getLbshDb());
+                + " urbanEnvironment="
+                + this.linkBudgetParameters.getUrbanEnvironment());
     }
 
 
@@ -268,8 +264,7 @@ public class NetworkServer {
         LinkBudgetResult result =
                 registerTransmissionMetric(
                         device,
-                        gateway,
-                        true);
+                        gateway);
 
         if (isLinkBudgetDrop(device, result)) {
 
@@ -442,10 +437,10 @@ public class NetworkServer {
         session.addRssi(
                 result.getRxPowerDbm());
 
-        session.setLastSnr(
+        session.setLastLinkMargin(
                 result.getMarginDb());
 
-        session.addSnr(
+        session.addLinkMargin(
                 result.getMarginDb());
 
         int recommendedSf =
@@ -454,8 +449,9 @@ public class NetworkServer {
         if (adrEnabled) {
 
             recommendedSf =
-                    adrManager.recommendSpreadingFactor(
-                            result.getMarginDb());
+                adrManager.recommendSpreadingFactor(
+                        result.getMarginDb(),
+                        session.getCurrentSf());
 
             if (recommendedSf != session.getCurrentSf()) {
 
@@ -487,15 +483,17 @@ public class NetworkServer {
         System.out.println(
                 "[DeviceSession] "
                 + deviceId
-                + " RSSI="
+                + " RxPower="
                 + result.getRxPowerDbm()
-                + " SNR="
-                + result.getMarginDb());
+                + " dBm"
+                + " LinkMargin="
+                + result.getMarginDb()
+                + " dB");
 
         System.out.printf(
-                "[Metrics] %s SNR Avg=%.2f dB%n",
+                "[Metrics] %s LinkMargin Avg=%.2f dB%n",
                 deviceId,
-                session.getAverageSnr());
+                session.getAverageLinkMargin());
 
         System.out.println(
                 "[Metrics] "
@@ -564,40 +562,61 @@ public class NetworkServer {
         }
     }
 
-    public LinkBudgetResult registerTransmissionMetric(Device device, Gateway gateway, boolean los) {
-        double dx = gateway.getX();
-        double dy = gateway.getY();
-        double distanceMeters = Math.sqrt(dx * dx + dy * dy);
+    public LinkBudgetResult registerTransmissionMetric(
+            Device device,
+            Gateway gateway) {
 
+        double distanceMeters =
+                Math.hypot(
+                        gateway.getX() - device.getX(),
+                        gateway.getY() - device.getY());
+
+        if (distanceMeters <= 0.0) {
+            throw new IllegalArgumentException(
+                    "La distancia dispositivo-gateway debe ser mayor a 0 m");
+        }
 
         int sf =
-            device.getSpreadingFactor();
+                device.getSpreadingFactor();
 
         double receiverSensitivity =
                 getReceiverSensitivity(sf);
 
+        /*
+         * Para uplink, el término de potencia transmisora corresponde
+         * al end-device. El simulador lo representa como EIRP y lo
+         * obtiene del dispositivo, nunca de la potencia del gateway.
+         */
         double txPowerDbm =
-            gateway.getMaxTxPowerDBm();
+                device.getEirpDbm();
 
         System.out.println(
-            "[LinkBudget] "
-            + device.getDeviceId()
-            + " SF"
-            + sf
-            + " Sens="
-            + receiverSensitivity
-            + " dBm");
+                "[LinkBudget] "
+                + device.getDeviceId()
+                + " SF"
+                + sf
+                + " Sens="
+                + receiverSensitivity
+                + " dBm"
+                + " EIRP="
+                + txPowerDbm
+                + " dBm"
+                + " LoS="
+                + linkBudgetParameters.isLos());
 
         LinkBudgetResult result =
-        linkBudgetService.evaluate(
-                device.getDeviceId(),
-                gateway.getGatewayId(),
-                distanceMeters,
-                txPowerDbm,
-                receiverSensitivity,
-                linkBudgetParameters);
+                linkBudgetService.evaluate(
+                        device.getDeviceId(),
+                        gateway.getGatewayId(),
+                        distanceMeters,
+                        txPowerDbm,
+                        receiverSensitivity,
+                        linkBudgetParameters);
 
-        performanceMetricsStore.add(new PerformanceMetric(System.currentTimeMillis(), result));
+        performanceMetricsStore.add(
+                new PerformanceMetric(
+                        System.currentTimeMillis(),
+                        result));
 
         System.out.printf(
                 "[Performance] dev=%s gw=%s dist=%.2fm loss=%.2fdB rx=%.2fdBm margin=%.2fdB los=%s%n",
@@ -607,9 +626,9 @@ public class NetworkServer {
                 result.getPathLossDb(),
                 result.getRxPowerDbm(),
                 result.getMarginDb(),
-                result.isLos()
-        );return result;
-        
+                result.isLos());
+
+        return result;
     }
 
     

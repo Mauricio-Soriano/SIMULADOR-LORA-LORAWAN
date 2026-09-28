@@ -1,0 +1,456 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 18
+skinparam sequenceMessageFontSize 16
+skinparam noteFontSize 15
+skinparam ArrowFontSize 15
+
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+title Diagrama de secuencia — Procesamiento detallado Uplink / Downlink
+
+autonumber
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+
+actor "SimulationRunner" as RUNNER
+
+
+box "End Device"
+    participant "Device" as DEV
+end box
+
+
+box "Transporte"
+    participant "UdpGatewayServer" as UDP
+    participant "TcpSender" as TCP_SEND
+    participant "TcpGatewayServer" as TCP_SERVER
+end box
+
+
+box "Gateway"
+    participant "Gateway" as GW
+end box
+
+
+box "Network Server"
+    participant "NetworkServer" as NS
+    participant "UplinkProcessor" as UP
+    participant "DeviceSessionRegistry" as SESSION_REG
+    participant "DeviceSession" as SESSION
+    participant "LinkBudgetService" as LB
+    participant "PacketLossSimulator" as LOSS
+    participant "DuplicateFrameDetector" as DUP
+    participant "AdrManager" as ADR
+    participant "DownlinkProcessor" as DOWN
+end box
+
+
+/' =====================================================
+   CREACIÓN DEL UPLINK
+   ===================================================== '/
+
+RUNNER -> DEV : sendUplink(ApplicationPayload)
+
+DEV -> DEV : frameCounter++
+
+DEV -> DEV : new UplinkFrame(...)
+
+DEV -> DEV : toHexString()
+
+
+/' =====================================================
+   SELECCIÓN DE TRANSPORTE
+   ===================================================== '/
+
+alt DeviceClass = CLASS_A
+
+    DEV -> DEV : sendUdpAndWaitResponse(payload)
+
+    DEV -> UDP : datagrama UDP\n127.0.0.1:5000
+
+    UDP -> GW : receiveUdpMessage(payload,\nsenderIp, senderPort, udpServer)
+
+    GW -> GW : lastContext = UDP
+
+    GW -> NS : receiveFromGateway(gatewayId,\npayload, "UDP")
+
+
+else DeviceClass = CLASS_B o CLASS_C
+
+    DEV -> TCP_SEND : new TcpSender(127.0.0.1, 6000)
+
+    DEV -> TCP_SEND : send(payload)
+
+    TCP_SEND -> TCP_SERVER : conexión TCP + payload
+
+    TCP_SERVER -> GW : receiveTcpMessage(payload,\nsenderIp, socket)
+
+    GW -> GW : lastContext = TCP
+
+    GW -> NS : receiveFromGateway(gatewayId,\npayload, "TCP")
+
+end
+
+
+/' =====================================================
+   DECODIFICACIÓN DEL UPLINK
+   ===================================================== '/
+
+NS -> UP : process(payload)
+
+UP --> NS : UplinkContext
+
+
+alt Payload inválido
+
+    NS --> GW : return
+
+else Payload válido
+
+    NS -> NS : obtener FCNT, TXTIME\ny deviceId
+
+    NS -> NS : localizar Device registrado
+
+
+    /' =================================================
+       OBTENCIÓN DE SESIÓN
+       ================================================= '/
+
+    NS -> SESSION_REG : getOrCreate(deviceId)
+
+    SESSION_REG --> NS : DeviceSession
+
+    NS -> SESSION : setCurrentSf(device.SF)
+
+    NS -> SESSION : registerTransmissionAttempt(FCNT)
+
+
+    opt Uplink confirmado y primer intento
+
+        NS -> SESSION : registerConfirmedMessage(FCNT)
+
+    end
+
+
+    /' =================================================
+       GATEWAY Y LINK BUDGET
+       ================================================= '/
+
+    NS -> NS : localizar Gateway registrado
+
+    NS -> NS : calcular distancia\nDevice ↔ Gateway
+
+    NS -> LB : evaluate(...,\nCost231LinkBudgetParameters)
+
+
+    note right of LB
+
+      El cálculo de propagación utiliza
+      COST231 Walfisch-Ikegami.
+
+      Resultado:
+      pathLoss
+      rxPower
+      linkMargin
+
+    end note
+
+
+    LB --> NS : LinkBudgetResult
+
+
+    /' =================================================
+       DESCARTE POR LINK BUDGET
+       ================================================= '/
+
+    alt rxPower < sensibilidad
+
+        NS -> SESSION : incrementLinkBudgetLosses(1)
+
+        note over NS
+
+          Uplink descartado por
+          presupuesto de enlace.
+
+          No continúa al procesamiento
+          de downlink.
+
+        end note
+
+
+    else Enlace suficiente
+
+
+        /' =============================================
+           PÉRDIDA ALEATORIA
+           ============================================= '/
+
+        NS -> LOSS : shouldDrop()
+
+        LOSS --> NS : true / false
+
+
+        alt Pérdida aleatoria
+
+            NS -> SESSION : incrementRandomLosses(1)
+
+            note over NS
+
+              Uplink descartado por
+              pérdida estocástica
+              configurable.
+
+            end note
+
+
+        else Sin pérdida aleatoria
+
+
+            /' =========================================
+               DETECCIÓN DE DUPLICADOS
+               ========================================= '/
+
+            NS -> DUP : isDuplicate(session, FCNT)
+
+            DUP --> NS : true / false
+
+
+            alt Trama duplicada
+
+                note over NS
+
+                  El FCNT recibido no supera
+                  al último FCNT aceptado.
+
+                  La trama se descarta.
+
+                end note
+
+
+            else Trama aceptada
+
+
+                /' =====================================
+                   ACTUALIZACIÓN DE SESIÓN
+                   ===================================== '/
+
+                NS -> SESSION : incrementPacketsReceived()
+
+                NS -> SESSION : addLatency(...)
+
+                NS -> SESSION : actualizar FCntUp\ny último FCNT
+
+                NS -> SESSION : almacenar bytes,\nRSSI y margen
+
+
+                opt Uplink confirmado
+
+                    NS -> SESSION : setAckRequired(true)
+
+                end
+
+
+                /' =====================================
+                   ADR
+                   ===================================== '/
+
+                alt ADR habilitado
+
+                    NS -> ADR : recommendSpreadingFactor(\nmargin, currentSf)
+
+                    ADR --> NS : recommendedSf
+
+                    NS -> SESSION : setRecommendedSf(recommendedSf)
+
+
+                else ADR deshabilitado
+
+                    NS -> SESSION : setRecommendedSf(currentSf)
+
+                end
+
+
+                /' =====================================
+                   PROCESAMIENTO DOWNLINK
+                   ===================================== '/
+
+                NS -> DOWN : process(device, session,\ngateway, context, transport)
+
+
+                ref over DOWN, SESSION
+
+                    Selección de política A/B/C,
+                    combinación de ACK + ADR +
+                    comando de aplicación y
+                    generación de DownlinkFrame.
+
+                    Véase Diagrama 05.
+
+                end ref
+
+
+                /' =====================================
+                   DECISIÓN DE ENVÍO
+                   ===================================== '/
+
+                alt ACK requerido o ADR pendiente o política solicita envío
+
+                    DOWN -> SESSION : nextFCntDown()
+
+
+                    opt ACK requerido
+
+                        DOWN -> SESSION : registerAckGenerated(uplinkFCNT)
+
+                    end
+
+
+                    DOWN -> GW : sendDownlink(payload, transport)
+
+
+                    /' =================================
+                       RETORNO UDP
+                       ================================= '/
+
+                    alt transport = UDP
+
+                        GW -> UDP : sendDownlink(payload,\nip, port)
+
+                        UDP --> DEV : datagrama downlink
+
+
+                        opt Contiene ADR:SF
+
+                            DEV -> DEV : applyAdrCommand()
+
+                            DEV -> DEV : setSpreadingFactor(newSf)
+
+                        end
+
+
+                        DEV -> DEV : interpretar ACK
+
+
+                    /' =================================
+                       RETORNO TCP
+                       ================================= '/
+
+                    else transport = TCP
+
+                        GW --> TCP_SEND : respuesta por socket TCP
+
+                        TCP_SEND --> DEV : String downlink
+
+                        DEV -> DEV : processTcpDownlink()
+
+
+                        opt ACK=true
+
+                            DEV -> DEV : ackReceived = true
+
+                        end
+
+
+                        opt Contiene ADR:SF
+
+                            DEV -> DEV : applyAdrCommand()
+
+                            DEV -> DEV : setSpreadingFactor(newSf)
+
+                        end
+
+                    end
+
+
+                    /' =================================
+                       LIMPIEZA ACK
+                       ================================= '/
+
+                    opt ACK requerido
+
+                        DOWN -> SESSION : setAckRequired(false)
+
+                    end
+
+
+                else Sin ACK, ADR ni comando
+
+                    DOWN --> NS : return sin downlink
+
+                end
+
+            end
+
+        end
+
+    end
+
+end
+
+
+/' =====================================================
+   RETRANSMISIÓN CLASE B / C
+   ===================================================== '/
+
+opt Clase B/C confirmada y ACK no recibido
+
+    loop Máximo 3 retransmisiones
+
+        DEV -> TCP_SEND : send(mismo payload)
+
+
+        ref over DEV, TCP_SEND, NS
+
+          Se repite el procesamiento anterior
+          utilizando el mismo FCNT.
+
+          DeviceSession registra el intento
+          como retransmisión.
+
+        end ref
+
+
+        TCP_SEND --> DEV : respuesta / null
+
+        DEV -> DEV : processTcpDownlink()
+
+    end
+
+end
+
+
+/' =====================================================
+   OBSERVACIÓN IMPLEMENTACIÓN UDP
+   ===================================================== '/
+
+note over DEV
+
+  En la ruta UDP,
+  sendUdpAndWaitResponse()
+  declara una variable local
+  denominada ackReceived.
+
+  Esa variable no actualiza
+  directamente el atributo
+  this.ackReceived.
+
+  Actualmente SimulationRunner
+  configura Class A como
+  no confirmada.
+
+end note
+
+
+@enduml

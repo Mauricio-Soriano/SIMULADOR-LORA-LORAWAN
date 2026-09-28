@@ -12,11 +12,13 @@ public class DeviceRequest {
     private int fPort;
     private double x;
     private double y;
+    private Double eirpDbm;
     private boolean enabled;
     private List<Integer> columnIndexes;
 
     public DeviceRequest() {
         this.enabled = true;
+        this.eirpDbm = null;
         this.columnIndexes = new ArrayList<>();
     }
 
@@ -26,6 +28,7 @@ public class DeviceRequest {
         this.fPort = fPort;
         this.x = x;
         this.y = y;
+        this.eirpDbm = null;
         this.enabled = true;
         this.columnIndexes = new ArrayList<>();
     }
@@ -36,6 +39,7 @@ public class DeviceRequest {
         this.fPort = fPort;
         this.x = x;
         this.y = y;
+        this.eirpDbm = null;
         this.enabled = true;
         this.columnIndexes = (columnIndexes != null) ? new ArrayList<>(columnIndexes) : new ArrayList<>();
     }
@@ -78,6 +82,14 @@ public class DeviceRequest {
 
     public void setY(double y) {
         this.y = y;
+    }
+
+    public Double getEirpDbm() {
+        return eirpDbm;
+    }
+
+    public void setEirpDbm(Double eirpDbm) {
+        this.eirpDbm = eirpDbm;
     }
 
     public boolean isEnabled() {

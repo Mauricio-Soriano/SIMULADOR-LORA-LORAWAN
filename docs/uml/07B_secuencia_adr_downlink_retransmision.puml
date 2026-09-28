@@ -1,0 +1,106 @@
+@startuml
+
+title Secuencia uplink - ADR y construcción del downlink
+
+hide footbox
+autonumber
+
+skinparam shadowing false
+skinparam defaultFontSize 17
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 16
+skinparam sequenceMessageFontSize 14
+skinparam noteFontSize 13
+skinparam ArrowFontSize 13
+
+skinparam ParticipantPadding 10
+skinparam BoxPadding 5
+skinparam maxMessageSize 75
+
+
+participant "Network\nServer" as NS
+participant "Device\nSession" as Session
+participant "ADR\nManager" as ADR
+participant "Downlink\nProcessor" as DP
+participant "Downlink\nPolicy" as Policy
+participant "Downlink\nFrame" as DF
+participant Gateway as GW
+
+
+note over NS, Session
+Inicio del 07B:
+el uplink ya fue aceptado
+en el Diagrama 07A.
+end note
+
+
+group Evaluación ADR
+
+    alt ADR habilitado
+
+        NS -> ADR : recommendSpreadingFactor(...)
+        ADR --> NS : recommendedSf
+
+        NS -> Session : setRecommendedSf(...)
+
+    else ADR deshabilitado
+
+        NS -> Session : mantener SF actual
+
+    end
+
+end
+
+
+group Evaluación del downlink
+
+    NS -> DP : process(...)
+
+    DP -> Policy : evaluate(...)
+    Policy --> DP : DownlinkDecision
+
+    DP -> Session : consultar ACK\ny recomendación ADR
+    Session --> DP : estado de sesión
+
+    alt No existe respuesta pendiente
+
+        DP --> NS : finalizar sin downlink
+
+    else Debe enviarse downlink
+
+        DP -> Session : nextFCntDown()
+        Session --> DP : fCntDown
+
+        opt ACK requerido
+
+            DP -> Session : registerAckGenerated(...)
+
+        end
+
+        DP -> DP : combinar ACK, ADR\ny comando de aplicación
+
+        create DF
+        DP -> DF : crear DownlinkFrame(...)
+
+        DF --> DP : payload de downlink
+
+        DP -> GW : sendDownlink(payload, transport)
+
+        opt ACK enviado
+
+            DP -> Session : setAckRequired(false)
+
+        end
+
+    end
+
+end
+
+
+note over DP, GW
+La entrega del downlink al dispositivo
+continúa en el Diagrama 07C.
+end note
+
+@enduml

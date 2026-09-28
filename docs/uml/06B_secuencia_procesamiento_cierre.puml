@@ -1,0 +1,101 @@
+@startuml
+
+title Secuencia de simulación - Procesamiento, resultado y cierre
+
+hide footbox
+autonumber
+
+skinparam shadowing false
+skinparam defaultFontSize 17
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 17
+skinparam sequenceMessageFontSize 15
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+
+skinparam ParticipantPadding 16
+skinparam BoxPadding 6
+skinparam maxMessageSize 90
+
+
+boundary "Frontend" as UI
+participant "API HTTP" as API
+participant SimulationRunner as Runner
+participant PayloadMapper as Mapper
+participant "Device\n[1..n]" as DEV
+participant NetworkServer as NS
+participant "Servidores\nUDP / TCP" as Transport
+participant MetricsReporter as Reporter
+
+
+activate Runner
+
+
+group Procesamiento de datos
+
+    loop por cada fila válida
+
+        loop por cada dispositivo habilitado
+
+            Runner -> Mapper : buildPayload(...)
+            Mapper --> Runner : payload
+
+            Runner -> DEV : sendUplink(ApplicationPayload)
+
+            note right of DEV
+            El flujo interno de uplink,
+            enlace y downlink se detalla
+            en el Diagrama 07.
+            end note
+
+        end
+
+        Runner -> Runner : processedRows++
+        Runner -> Runner : esperar intervalo configurado
+
+    end
+
+end
+
+
+group Resultado
+
+    Runner -> Runner : construir SimulationResult
+
+end
+
+
+group Cierre
+
+    Runner -> Transport : detener servidores UDP/TCP
+
+    Runner -> Runner : cerrar hilos de transporte
+
+    create Reporter
+    Runner -> Reporter : crear MetricsReporter()
+
+    Runner -> NS : getSessionRegistry()\n.getAllSessions()
+    NS --> Runner : sesiones
+
+    Runner -> Reporter : printReport(sesiones)
+
+end
+
+
+Runner --> API : SimulationResult
+
+deactivate Runner
+
+API --> UI : respuesta JSON
+
+UI -> UI : actualizar state.result
+UI -> UI : render()
+
+
+note over UI, API
+La interfaz presenta el resultado
+obtenido al finalizar la simulación.
+end note
+
+@enduml

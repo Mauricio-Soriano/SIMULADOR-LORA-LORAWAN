@@ -1,0 +1,67 @@
+@startuml
+allowmixing
+
+title Arquitectura del simulador - Entrada y orquestacion
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 19
+skinparam titleFontSize 22
+skinparam classFontSize 19
+skinparam ArrowFontSize 16
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 25
+skinparam ranksep 25
+
+
+package "Interfaz de usuario" as PKG_UI {
+
+    rectangle "simulator-dashboard.html" as HTML
+    rectangle "simulator-dashboard.js" as JS
+
+    HTML -down-> JS : interfaz
+}
+
+
+package "Configuración\ny simulación" as PKG_SIM  {
+
+    class SimulationRequest <<DTO>>
+    class SimulationRunner
+    class PayloadMapper
+    class FuenteInformacion
+
+    SimulationRequest -down-> SimulationRunner : recibe
+    SimulationRunner -down-> PayloadMapper : utiliza
+    SimulationRunner -right-> FuenteInformacion : carga archivo
+}
+
+
+package "Preparación del dispositivo" as PKG_DEVICE {
+
+    class Device
+    class UplinkFrame
+    class ApplicationPayload
+
+    Device -down-> UplinkFrame : construye
+    UplinkFrame -down-> ApplicationPayload : contiene
+}
+
+
+JS -right-> SimulationRequest : configura
+
+SimulationRunner -right-> Device : crea y configura
+
+PayloadMapper -right-> ApplicationPayload : genera
+
+
+note bottom of SimulationRunner
+Orquesta la simulación.
+end note
+
+@enduml

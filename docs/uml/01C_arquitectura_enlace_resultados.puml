@@ -1,0 +1,68 @@
+@startuml
+
+title Arquitectura del simulador - Enlace, downlink y resultados
+
+left to right direction
+
+skinparam shadowing false
+skinparam defaultFontSize 19
+skinparam titleFontSize 22
+skinparam classFontSize 19
+skinparam ArrowFontSize 16
+
+skinparam nodesep 25
+skinparam ranksep 25
+
+
+package "Network Server" as PKG_NETWORK {
+
+    class NetworkServer
+    class DeviceSession
+}
+
+
+package "Evaluacion del enlace" as PKG_LINK {
+
+    class LinkBudgetService
+    class Cost231WalfischIkegamiModel
+    class Cost231LinkBudgetParameters
+    class LinkBudgetResult
+}
+
+
+package "Control de red" as PKG_CONTROL {
+
+    class AdrManager
+    class DownlinkProcessor
+}
+
+
+package "Resultados" as PKG_RESULTS {
+
+    class PerformanceMetricsStore
+    class MetricsReporter
+}
+
+
+NetworkServer --> LinkBudgetService : evalua enlace
+
+LinkBudgetService --> Cost231WalfischIkegamiModel : calcula perdida
+LinkBudgetService --> Cost231LinkBudgetParameters : usa parámetros
+LinkBudgetService --> LinkBudgetResult : genera
+
+NetworkServer --> AdrManager : evalua ADR
+AdrManager --> DeviceSession : actualiza recomendación
+
+NetworkServer --> DownlinkProcessor : solicita respuesta
+DownlinkProcessor --> DeviceSession : consulta estado
+
+NetworkServer --> PerformanceMetricsStore : registra
+PerformanceMetricsStore --> MetricsReporter : genera reporte
+
+
+note bottom of Cost231WalfischIkegamiModel
+énico modelo de propagación
+implementado.
+end note
+
+@enduml

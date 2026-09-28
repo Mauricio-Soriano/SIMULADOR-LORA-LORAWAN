@@ -1,0 +1,83 @@
+@startuml
+
+title Network Server - Control, downlink y métricas
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+class NetworkServer {
+    - adrEnabled : boolean
+
+    + configureAdr(enabled : boolean)
+    + getPerformanceMetricsStore() : PerformanceMetricsStore
+}
+
+
+package "Control de la transmisión" as PKG_CONTROL {
+
+    class AdrManager {
+        + recommendSpreadingFactor(...) : int
+    }
+
+    class DownlinkProcessor {
+        + process(...)
+    }
+
+    class DeviceSession <<estado de sesión>> {
+        - currentSf : int
+        - recommendedSf : int
+        - ackRequired : boolean
+
+        + setRecommendedSf(sf : int)
+        + isAckRequired() : boolean
+    }
+}
+
+
+package "Registro de métricas" as PKG_METRICS {
+
+    class PerformanceMetricsStore {
+        + add(metric : PerformanceMetric)
+        + getAll() : List
+    }
+
+    class PerformanceMetric
+}
+
+
+NetworkServer *-- AdrManager
+NetworkServer *-- DownlinkProcessor
+NetworkServer *-- PerformanceMetricsStore
+
+AdrManager --> DeviceSession : actualiza recomendación
+DownlinkProcessor --> DeviceSession : consulta estado
+
+PerformanceMetricsStore --> PerformanceMetric : almacena
+
+
+AdrManager -[hidden]right- DownlinkProcessor
+DownlinkProcessor -[hidden]right- PerformanceMetricsStore
+
+
+note bottom of NetworkServer
+Coordina el control posterior
+a la evaluación de la transmisión.
+end note
+
+@enduml

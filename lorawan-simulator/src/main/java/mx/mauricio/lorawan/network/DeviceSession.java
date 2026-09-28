@@ -23,7 +23,7 @@ public class DeviceSession {
     private String lastGatewayId;
 
     private double lastRssi;
-    private double lastSnr;
+    private double lastLinkMargin;
 
     private boolean ackRequired;
 
@@ -44,7 +44,7 @@ public class DeviceSession {
     private final List<Double> rssiHistory =
         new ArrayList<>();
 
-    private final List<Double> snrHistory = new ArrayList<>();
+    private final List<Double> linkMarginHistory = new ArrayList<>();
 
     private final List<Long> latencyHistory = new ArrayList<>();
     
@@ -120,8 +120,17 @@ public class DeviceSession {
         rssiHistory.add(rssi);
     }
 
+    public void addLinkMargin(double linkMarginDb) {
+        linkMarginHistory.add(linkMarginDb);
+    }
+
+    /**
+     * Compatibilidad temporal con código anterior.
+     * El valor almacenado no es SNR: corresponde al margen de enlace.
+     */
+    @Deprecated
     public void addSnr(double snr) {
-        snrHistory.add(snr);
+        addLinkMargin(snr);
     }
 
     public void addLatency(long latencyMs)
@@ -129,19 +138,28 @@ public class DeviceSession {
         latencyHistory.add(latencyMs);
     }
 
-    public double getAverageSnr() {
+    public double getAverageLinkMargin() {
 
-        if (snrHistory.isEmpty()) {
+        if (linkMarginHistory.isEmpty()) {
             return 0.0;
         }
 
         double sum = 0.0;
 
-        for (double snr : snrHistory) {
-            sum += snr;
+        for (double linkMargin : linkMarginHistory) {
+            sum += linkMargin;
         }
 
-        return sum / snrHistory.size();
+        return sum / linkMarginHistory.size();
+    }
+
+    /**
+     * Compatibilidad temporal con código anterior.
+     * No representa una SNR real.
+     */
+    @Deprecated
+    public double getAverageSnr() {
+        return getAverageLinkMargin();
     }
 
     public double getAverageLatency()
@@ -402,11 +420,29 @@ public class DeviceSession {
         this.lastRssi = lastRssi;
     }
 
-    public double getLastSnr() {
-        return lastSnr;
+    public double getLastLinkMargin() {
+        return lastLinkMargin;
     }
 
+    public void setLastLinkMargin(double lastLinkMargin) {
+        this.lastLinkMargin = lastLinkMargin;
+    }
+
+    /**
+     * Compatibilidad temporal con código anterior.
+     * No representa una SNR real.
+     */
+    @Deprecated
+    public double getLastSnr() {
+        return getLastLinkMargin();
+    }
+
+    /**
+     * Compatibilidad temporal con código anterior.
+     * El argumento corresponde al margen de enlace.
+     */
+    @Deprecated
     public void setLastSnr(double lastSnr) {
-        this.lastSnr = lastSnr;
+        setLastLinkMargin(lastSnr);
     }
 }

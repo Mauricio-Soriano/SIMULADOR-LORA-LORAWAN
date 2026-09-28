@@ -1,0 +1,108 @@
+@startuml
+
+title Network Server - Núcleo, registros y sesiones
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+class NetworkServer {
+    - deviceRegistry : DeviceRegistry
+    - sessionRegistry : DeviceSessionRegistry
+    - gatewayRegistry : GatewayRegistry
+
+    + registerDevice(device : Device)
+    + registerGateway(gateway : Gateway)
+    + getRegisteredDevice(deviceId : String) : Device
+    + getRegisteredGateway(gatewayId : String) : Gateway
+    + receiveFromGateway(gatewayId : String, payload : String, transport : String)
+}
+
+
+package "Registros" as PKG_REG {
+
+    class DeviceRegistry {
+        + register(device : Device)
+        + get(deviceId : String) : Device
+    }
+
+    class GatewayRegistry {
+        + register(gateway : Gateway)
+        + get(gatewayId : String) : Gateway
+    }
+
+    class DeviceSessionRegistry {
+        + getOrCreate(deviceId : String) : DeviceSession
+    }
+
+    DeviceRegistry -[hidden]right- GatewayRegistry
+    GatewayRegistry -[hidden]right- DeviceSessionRegistry
+}
+
+
+package "Entidades administradas" as PKG_ENT {
+
+    class Device {
+        + getDeviceId() : String
+        + getSpreadingFactor() : int
+    }
+
+    class Gateway {
+        + getGatewayId() : String
+    }
+
+    class DeviceSession {
+        - deviceId : String
+        - fCntUp : int
+        - fCntDown : int
+        - packetsReceived : int
+        - packetsLost : int
+        - currentSf : int
+        - ackRequired : boolean
+
+        + registerTransmissionAttempt(fcnt : int) : boolean
+        + registerConfirmedMessage(fcnt : int)
+        + incrementPacketsReceived()
+        + incrementPacketsLost(count : int)
+        + setCurrentSf(sf : int)
+    }
+
+    Device -[hidden]right- Gateway
+    Gateway -[hidden]right- DeviceSession
+}
+
+
+NetworkServer *-- DeviceRegistry
+NetworkServer *-- GatewayRegistry
+NetworkServer *-- DeviceSessionRegistry
+
+DeviceRegistry --> Device : administra
+GatewayRegistry --> Gateway : administra
+DeviceSessionRegistry --> DeviceSession : obtiene o crea
+
+NetworkServer --> Device : identifica
+NetworkServer --> Gateway : identifica
+NetworkServer --> DeviceSession : actualiza
+
+
+note bottom of NetworkServer
+Administra los elementos registrados
+y el estado de las sesiones.
+end note
+
+@enduml

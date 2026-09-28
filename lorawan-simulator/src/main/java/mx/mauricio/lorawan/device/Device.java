@@ -17,6 +17,9 @@ public class Device {
     private final String deviceId;
     private final Gateway gateway;
     private final LoRaConfig config;
+    private final double x;
+    private final double y;
+    private double currentEirpDbm;
     private boolean confirmed;
     private int frameCounter = 0;
     private static final int MAX_RETRIES = 3;
@@ -30,13 +33,15 @@ public class Device {
             LoRaConfig config,
             boolean confirmed) {
 
-        this.deviceId = deviceId;
-        this.gateway = gateway;
-        this.config = config;
-        this.confirmed = confirmed;
-        this.currentSpreadingFactor =
-            config.getSpreadingFactor();
-        }
+        this(
+                deviceId,
+                gateway,
+                config,
+                0.0,
+                0.0,
+                config.getDefaultEirpDbm(),
+                confirmed);
+    }
 
     public Device(
             String deviceId,
@@ -44,6 +49,50 @@ public class Device {
             LoRaConfig config) {
 
         this(deviceId, gateway, config, false);
+    }
+
+    public Device(
+            String deviceId,
+            Gateway gateway,
+            LoRaConfig config,
+            double x,
+            double y,
+            double eirpDbm) {
+
+        this(deviceId, gateway, config, x, y, eirpDbm, false);
+    }
+
+    public Device(
+            String deviceId,
+            Gateway gateway,
+            LoRaConfig config,
+            double x,
+            double y,
+            double eirpDbm,
+            boolean confirmed) {
+
+        if (config == null) {
+            throw new IllegalArgumentException(
+                    "LoRaConfig no puede ser null");
+        }
+
+        if (!Double.isFinite(x)
+                || !Double.isFinite(y)
+                || !Double.isFinite(eirpDbm)) {
+
+            throw new IllegalArgumentException(
+                    "Posición y EIRP del dispositivo deben ser valores finitos");
+        }
+
+        this.deviceId = deviceId;
+        this.gateway = gateway;
+        this.config = config;
+        this.x = x;
+        this.y = y;
+        this.currentEirpDbm = eirpDbm;
+        this.confirmed = confirmed;
+        this.currentSpreadingFactor =
+                config.getSpreadingFactor();
     }
 
 
@@ -246,6 +295,15 @@ public class Device {
                 spreadingFactor;
     }
 
+    public void setEirpDbm(double eirpDbm) {
+        if (!Double.isFinite(eirpDbm)) {
+            throw new IllegalArgumentException(
+                    "eirpDbm debe ser un valor finito");
+        }
+
+        this.currentEirpDbm = eirpDbm;
+    }
+
    private void applyAdrCommand(String downlink) {
 
         try {
@@ -281,6 +339,9 @@ public class Device {
     public LoRaConfig getConfig() { return config; }
     public int getFrameCounter() { return frameCounter; }
     public int getSpreadingFactor() {
-    return currentSpreadingFactor;
- }
+        return currentSpreadingFactor;
+    }
+    public double getX() { return x; }
+    public double getY() { return y; }
+    public double getEirpDbm() { return currentEirpDbm; }
 }

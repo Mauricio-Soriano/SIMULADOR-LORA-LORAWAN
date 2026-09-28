@@ -1,0 +1,351 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 18
+skinparam sequenceMessageFontSize 16
+skinparam noteFontSize 15
+skinparam ArrowFontSize 15
+
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 120
+
+title Diagrama de secuencia — Ejecución completa de una simulación LoRaWAN
+
+autonumber
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 140
+
+
+actor "Usuario" as USER
+
+
+box "Frontend"
+    boundary "simulator-dashboard.js" as UI
+end box
+
+
+box "Capa Web"
+    control "SimulationController" as CTRL
+    participant "JsonUtil" as JSON
+end box
+
+
+box "Núcleo del simulador"
+    control "SimulationRunner" as RUNNER
+
+    control "NetworkServer" as NS
+
+    entity "Gateway" as GW
+
+    participant "UdpGatewayServer" as UDP
+
+    participant "TcpGatewayServer" as TCP
+
+    entity "Device" as DEV
+
+    participant "FuenteInformacion" as SOURCE
+
+    participant "PayloadMapper" as MAPPER
+
+    participant "MetricsReporter" as METRICS
+end box
+
+
+/' =====================================================
+   FRONTEND
+   ===================================================== '/
+
+USER -> UI : Clic en "Ejecutar simulación"
+
+
+UI -> UI : runSimulation()
+
+UI -> UI : busy = true\nrender()
+
+
+opt Archivo local aún no cargado
+
+    UI -> UI : uploadSelectedFile()
+
+end
+
+
+UI -> UI : buildSimulationPayload()
+
+note right of UI
+
+  Construye el JSON con:
+  archivo, filas, intervalo,
+  gateway, dispositivos,
+  ADR, pérdidas y parámetros
+  del presupuesto de enlace.
+
+end note
+
+
+UI -> CTRL : POST solicitud de simulación\nJSON
+
+
+/' =====================================================
+   CONTROLADOR WEB
+   ===================================================== '/
+
+
+CTRL -> JSON : fromJson(body, SimulationRunRequest.class)
+
+JSON --> CTRL : SimulationRunRequest
+
+
+CTRL -> CTRL : validate(request)
+
+
+alt Solicitud inválida
+
+    CTRL -> JSON : toJson(ErrorResponse)
+
+    JSON --> CTRL : JSON de error
+
+    CTRL --> UI : HTTP 400 + JSON
+
+
+else Solicitud válida
+
+    CTRL -> CTRL : convertRequest(webRequest)
+
+    note right of CTRL
+
+      Convierte la estructura Web
+      en SimulationRequest:
+      - configuración general
+      - gateway
+      - dispositivos
+      - LoRaConfig
+      - COST231
+      - ADR / pérdida aleatoria
+
+    end note
+
+
+    CTRL -> RUNNER : new SimulationRunner()
+
+
+    CTRL -> RUNNER : run(SimulationRequest)
+
+
+    /' =================================================
+       PREPARACIÓN DE LA SIMULACIÓN
+       ================================================= '/
+
+    RUNNER -> RUNNER : validateRequest(request)
+
+
+    RUNNER -> NS : new NetworkServer()
+
+    RUNNER -> NS : configureAdr(...)
+
+    RUNNER -> NS : configureRandomPacketLoss(...)
+
+    RUNNER -> NS : configureLinkBudgetParameters(...)
+
+
+    RUNNER -> GW : new Gateway(...)
+
+    RUNNER -> NS : registerGateway(gateway)
+
+
+    RUNNER -> UDP : new UdpGatewayServer(...)
+
+    RUNNER -> UDP : iniciar Thread UDP
+
+
+    RUNNER -> TCP : new TcpGatewayServer(...)
+
+    RUNNER -> TCP : iniciar Thread TCP
+
+
+    RUNNER -> RUNNER : sleep(300 ms)
+
+
+    /' =================================================
+       CREACIÓN DE DISPOSITIVOS
+       ================================================= '/
+
+    loop Por cada DeviceRequest habilitado
+
+        RUNNER -> DEV : new Device(id, gateway,\nconfig, x, y, eirpDbm)
+
+        alt Clase B o Clase C
+
+            RUNNER -> DEV : setConfirmed(true)
+
+        else Clase A
+
+            RUNNER -> DEV : setConfirmed(false)
+
+        end
+
+        RUNNER -> NS : registerDevice(device)
+
+    end
+
+
+    /' =================================================
+       RESULTADO Y FUENTE DE INFORMACIÓN
+       ================================================= '/
+
+    RUNNER -> RUNNER : new SimulationResult()
+
+
+    RUNNER -> SOURCE : new FuenteInformacion(inputFile)
+
+    RUNNER -> SOURCE : cargarInformacion()
+
+    RUNNER -> SOURCE : getLineas()
+
+    SOURCE --> RUNNER : List<String>
+
+
+    RUNNER -> RUNNER : detectStartIndex(lineas)
+
+    RUNNER -> RUNNER : determinar maxRows
+
+
+    /' =================================================
+       PROCESAMIENTO DE FILAS
+       ================================================= '/
+
+    loop Por cada fila procesable
+
+        RUNNER -> RUNNER : obtener línea
+
+
+        alt Línea vacía
+
+            RUNNER -> RUNNER : skippedRows++
+
+        else Línea válida
+
+            loop Por cada dispositivo configurado
+
+                RUNNER -> MAPPER : buildPayload(linea, DeviceRequest)
+
+                MAPPER --> RUNNER : payload
+
+
+                RUNNER -> DEV : sendUplink(\nnew ApplicationPayload(payload, fPort))
+
+
+                ref over DEV, GW, NS
+
+                    Procesamiento de uplink / downlink.
+                    Se desarrolla en detalle
+                    en el Diagrama 07.
+
+                end ref
+
+            end
+
+
+            RUNNER -> RUNNER : processedRows++
+
+            RUNNER -> RUNNER : sleep(sendIntervalMs)
+
+        end
+
+    end
+
+
+    /' =================================================
+       RESULTADO DE LA EJECUCIÓN
+       ================================================= '/
+
+    alt Ejecución finalizada correctamente
+
+        RUNNER -> RUNNER : result.setSuccess(true)
+
+        RUNNER -> RUNNER : guardar filas procesadas,\nomitidas y dispositivos
+
+    else Excepción durante simulación
+
+        RUNNER -> RUNNER : result.setSuccess(false)
+
+        RUNNER -> RUNNER : guardar mensaje de error
+
+    end
+
+
+    /' =================================================
+       FINALIZACIÓN
+       ================================================= '/
+
+    group finally
+
+        RUNNER -> UDP : stop()
+
+        RUNNER -> TCP : stop()
+
+
+        RUNNER -> METRICS : printReport(sessions)
+
+
+        RUNNER -> METRICS : buildMetrics(\nsessions,\nperformanceMetrics)
+
+        METRICS --> RUNNER : List<DeviceMetric>
+
+
+        RUNNER -> RUNNER : result.setMetrics(metrics)
+
+    end
+
+
+    RUNNER --> CTRL : SimulationResult
+
+
+
+    /' =================================================
+       RESPUESTA WEB
+       ================================================= '/
+
+    CTRL -> CTRL : construir SimulationRunResponse
+
+    CTRL -> CTRL : copiar success, message,\nscenarioName, metrics y summary
+
+
+    CTRL -> JSON : toJson(responseBody)
+
+    JSON --> CTRL : JSON
+
+
+    CTRL --> UI : respuesta JSON
+
+end
+
+
+
+
+/' =====================================================
+   ACTUALIZACIÓN DEL FRONTEND
+   ===================================================== '/
+
+UI -> UI : response.json()
+
+UI -> UI : state.result = result
+
+UI -> UI : busy = false
+
+UI -> UI : render()
+
+UI --> USER : Mostrar resultados
+
+
+
+
+@enduml

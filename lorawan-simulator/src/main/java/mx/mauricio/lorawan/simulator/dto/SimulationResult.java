@@ -54,11 +54,21 @@ public class SimulationResult {
         public int ackLost;
         public double confirmedSuccessRate;
 
+        // Métricas históricas de sesión ya utilizadas por la Fase 6.4.1.
         public double rssiAvg;
         public double linkMarginAvg;
 
         public double throughputKbps;
         public double latencyAvgMs;
+
+        // Fase 6.4.2: métricas radio derivadas directamente de
+        // PerformanceMetric -> LinkBudgetResult.
+        public int radioSamples;
+        public double distanceMeters;
+        public double pathLossDb;
+        public double rxPowerDbm;
+        public double radioLinkMarginAvgDb;
+        public boolean los;
     }
 
     public boolean isSuccess() {

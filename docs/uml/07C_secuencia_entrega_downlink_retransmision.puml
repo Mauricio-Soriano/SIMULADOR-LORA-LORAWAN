@@ -1,0 +1,91 @@
+@startuml
+
+title Secuencia downlink - Entrega y retransmisión
+
+hide footbox
+autonumber
+
+skinparam shadowing false
+skinparam defaultFontSize 17
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 16
+skinparam sequenceMessageFontSize 14
+skinparam noteFontSize 13
+skinparam ArrowFontSize 13
+
+skinparam ParticipantPadding 12
+skinparam BoxPadding 5
+skinparam maxMessageSize 75
+
+
+participant Gateway as GW
+participant "Transporte\nUDP / TCP" as Transport
+participant Device as DEV
+
+
+note over GW, DEV
+Inicio del 07C:
+el downlink fue construido
+en el Diagrama 07B.
+end note
+
+
+group Entrega del downlink
+
+    GW -> Transport : enviar respuesta
+
+    Transport -> DEV : entregar downlink
+
+end
+
+
+group Procesamiento en el dispositivo
+
+    DEV -> DEV : procesar downlink
+
+    opt Contiene ACK
+
+        DEV -> DEV : registrar ACK recibido
+
+    end
+
+    opt Contiene comando ADR
+
+        DEV -> DEV : applyAdrCommand(...)
+        DEV -> DEV : actualizar SF
+
+    end
+
+end
+
+
+group Retransmisión TCP
+
+    alt Clase B/C confirmada\ny ACK no recibido
+
+        loop mientras retryCount < MAX_RETRIES\ny no se reciba ACK
+
+            DEV -> Transport : retransmitir uplink
+
+            Transport --> DEV : respuesta
+
+            DEV -> DEV : procesar respuesta
+
+        end
+
+        note over DEV
+        Cada retransmisión vuelve a
+        ingresar al procesamiento
+        descrito en el Diagrama 07A.
+        end note
+
+    else ACK recibido o mensaje no confirmado
+
+        DEV -> DEV : finalizar transmisión
+
+    end
+
+end
+
+@enduml

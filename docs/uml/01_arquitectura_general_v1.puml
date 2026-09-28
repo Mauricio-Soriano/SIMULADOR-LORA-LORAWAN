@@ -1,0 +1,164 @@
+@startuml
+left to right direction
+
+title Arquitectura general del simulador LoRaWAN
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+package "Interfaz de usuario" {
+
+    class "simulator-dashboard.html" as DashboardHTML <<Frontend>>
+    class "simulator-dashboard.js" as DashboardJS <<Frontend>>
+
+}
+
+
+package "Configuración y simulación" {
+
+    class SimulationRequest <<DTO>>
+    class SimulationRunner
+    class PayloadMapper
+    class FuenteInformacion
+
+}
+
+
+package "Dispositivo final" {
+
+    class Device
+    class UplinkFrame
+    class ApplicationPayload
+
+}
+
+
+package "Gateway" {
+
+    class Gateway
+    class UdpGatewayServer
+    class TcpGatewayServer
+
+}
+
+
+package "Network Server" {
+
+    class NetworkServer
+    class UplinkProcessor
+    class DeviceSession
+    class DownlinkProcessor
+    class AdrManager
+    class PacketLossSimulator
+    class DuplicateFrameDetector
+
+}
+
+
+package "Rendimiento del enlace" {
+
+    class LinkBudgetService
+    class Cost231WalfischIkegamiModel
+    class Cost231LinkBudgetParameters
+    class LinkBudgetResult
+
+}
+
+
+package "Resultados" {
+
+    class MetricsReporter
+    class PerformanceMetricsStore
+
+}
+
+
+/' =========================
+   FRONTEND
+   ========================= '/
+
+DashboardHTML --> DashboardJS
+
+DashboardJS ..> SimulationRequest : configura
+
+
+/' =========================
+   SIMULACIÓN
+   ========================= '/
+
+SimulationRunner ..> SimulationRequest : recibe
+
+SimulationRunner ..> FuenteInformacion : carga archivo
+
+SimulationRunner ..> PayloadMapper : genera payload
+
+SimulationRunner ..> NetworkServer : crea / configura
+
+SimulationRunner ..> Gateway : crea
+
+SimulationRunner ..> Device : crea
+
+
+/' =========================
+   DISPOSITIVO Y GATEWAY
+   ========================= '/
+
+Device --> Gateway : conoce
+
+Device ..> UplinkFrame : construye
+
+Device ..> ApplicationPayload : recibe
+
+Gateway --> NetworkServer : entrega uplink
+
+
+/' =========================
+   NETWORK SERVER
+   ========================= '/
+
+NetworkServer ..> UplinkProcessor : procesa trama
+
+NetworkServer ..> DeviceSession : mantiene estado
+
+NetworkServer --> AdrManager
+
+NetworkServer --> PacketLossSimulator
+
+NetworkServer --> DuplicateFrameDetector
+
+NetworkServer --> DownlinkProcessor
+
+
+/' =========================
+   LINK BUDGET
+   ========================= '/
+
+NetworkServer --> LinkBudgetService
+
+LinkBudgetService --> Cost231WalfischIkegamiModel
+
+LinkBudgetService ..> Cost231LinkBudgetParameters
+
+LinkBudgetService ..> LinkBudgetResult
+
+
+/' =========================
+   DOWNLINK
+   ========================= '/
+
+DownlinkProcessor --> Gateway : envía downlink
+
+Gateway --> Device : downlink
+
+
+/' =========================
+   MÉTRICAS
+   ========================= '/
+
+NetworkServer --> PerformanceMetricsStore
+
+SimulationRunner ..> MetricsReporter : reporte final
+
+
+@enduml

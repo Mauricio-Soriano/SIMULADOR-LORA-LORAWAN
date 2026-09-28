@@ -1,0 +1,88 @@
+@startuml
+
+title Simulación - Infraestructura de ejecución
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+class SimulationRunner {
+    + run(...) : SimulationResult
+}
+
+
+package "Infraestructura de red" as PKG_NETWORK {
+
+    class UdpGatewayServer {
+        + run()
+        + stop()
+        + sendDownlink(...)
+    }
+
+    class TcpGatewayServer {
+        + run()
+        + stop()
+    }
+
+    class Gateway {
+        + receiveUdpMessage(...)
+        + receiveTcpMessage(...)
+        + sendDownlink(...)
+    }
+
+    class NetworkServer {
+        + registerDevice(...)
+        + registerGateway(...)
+        + receiveFromGateway(...)
+    }
+
+    UdpGatewayServer -[hidden]right- TcpGatewayServer
+    TcpGatewayServer -[hidden]right- Gateway
+    Gateway -[hidden]right- NetworkServer
+}
+
+
+class Device {
+    - deviceId : String
+    - currentSpreadingFactor : int
+    - confirmed : boolean
+
+    + sendUplink(...)
+}
+
+
+SimulationRunner --> NetworkServer : crea y configura
+SimulationRunner --> Gateway : crea
+SimulationRunner --> UdpGatewayServer : inicia
+SimulationRunner --> TcpGatewayServer : inicia
+SimulationRunner --> Device : crea y registra
+
+UdpGatewayServer --> Gateway : entrega UDP
+TcpGatewayServer --> Gateway : entrega TCP
+
+Gateway --> NetworkServer : reenvía uplink
+
+Device -- Gateway : asociado
+
+
+note bottom of SimulationRunner
+Coordina la creación y el
+ciclo de vida de la infraestructura.
+end note
+
+@enduml

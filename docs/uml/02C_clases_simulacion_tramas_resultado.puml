@@ -1,0 +1,82 @@
+@startuml
+
+title Simulación - Generación de tramas y resultado
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+package "Orquestación" as PKG_RUNNER {
+
+    class SimulationRunner {
+        + run(...) : SimulationResult
+    }
+
+
+    class SimulationResult <<resultado>> {
+        - success : boolean
+        - processedRows : int
+        - skippedRows : int
+        - devicesConfigured : int
+        - message : String
+    }
+}
+
+
+package "Dispositivo y trama" as PKG_FRAME {
+
+    class Device {
+        - deviceId : String
+        - frameCounter : int
+        - currentSpreadingFactor : int
+
+        + sendUplink(...)
+    }
+
+
+    class ApplicationPayload {
+        - payload : String
+        - fPort : int
+    }
+
+
+    class UplinkFrame {
+        + toHexString() : String
+    }
+
+
+    Device -[hidden]right- UplinkFrame
+    UplinkFrame -[hidden]right- ApplicationPayload
+}
+
+
+SimulationRunner --> Device : ejecuta transmisión
+SimulationRunner --> ApplicationPayload : construye por fila
+SimulationRunner --> SimulationResult : devuelve
+
+Device --> UplinkFrame : construye
+
+UplinkFrame *-- ApplicationPayload : contiene
+
+
+note bottom of SimulationRunner
+Procesa las filas configuradas
+y construye el resultado final.
+end note
+
+@enduml

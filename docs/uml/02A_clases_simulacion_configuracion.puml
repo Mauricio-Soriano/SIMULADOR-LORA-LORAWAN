@@ -1,0 +1,118 @@
+@startuml
+
+title Simulación - Configuración y preparación
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+package "Coordinación" as PKG_RUNNER {
+
+    class SimulationRunner {
+        + run(request : SimulationRequest) : SimulationResult
+    }
+}
+
+
+package "Solicitud de simulación" as PKG_REQUEST {
+
+    class SimulationRequest <<DTO>> {
+        - inputFile : String
+        - rowsToProcess : int
+        - sendIntervalMs : int
+        - adrEnabled : Boolean
+        - randomLossEnabled : Boolean
+        - randomLossProbability : Double
+    }
+}
+
+
+package "Configuración específica" as PKG_CONFIG {
+
+    class GatewayRequest <<DTO>> {
+        - gatewayId : String
+        - x : double
+        - y : double
+        - maxTxPowerDBm : int
+        - udpPort : int
+        - tcpPort : int
+    }
+
+
+    class DeviceRequest <<DTO>> {
+        - deviceId : String
+        - fPort : int
+        - x : double
+        - y : double
+        - eirpDbm : Double
+        - enabled : boolean
+        - columnIndexes : List<Integer>
+    }
+
+
+    class LoRaConfig <<configuración LoRaWAN>>
+
+
+    class Cost231LinkBudgetParameters <<parámetros físicos>>
+
+
+    GatewayRequest -[hidden]right- DeviceRequest
+    DeviceRequest -[hidden]right- Cost231LinkBudgetParameters
+}
+
+
+package "Preparación de datos" as PKG_DATA {
+
+    class FuenteInformacion {
+        + cargarInformacion()
+        + getLineas() : List<String>
+    }
+
+
+    class PayloadMapper {
+        + buildPayload(csvLine : String, request : DeviceRequest) : String
+    }
+
+
+    FuenteInformacion -[hidden]right- PayloadMapper
+}
+
+
+SimulationRunner --> SimulationRequest : recibe
+
+
+SimulationRequest *-- GatewayRequest : gateway
+SimulationRequest *-- "1..*" DeviceRequest : dispositivos
+SimulationRequest *-- Cost231LinkBudgetParameters : parámetros de enlace
+
+
+DeviceRequest --> LoRaConfig : configuración
+
+
+SimulationRunner --> FuenteInformacion : carga fuente
+SimulationRunner --> PayloadMapper : prepara payload
+
+PayloadMapper --> DeviceRequest : usa columnas
+
+
+note bottom of SimulationRunner
+Valida la solicitud y prepara
+los elementos de la simulación.
+end note
+
+@enduml

@@ -1,0 +1,428 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam classFontSize 18
+skinparam classAttributeFontSize 16
+skinparam classMethodFontSize 16
+skinparam classStereotypeFontSize 14
+
+skinparam packageTitleFontSize 18
+
+skinparam ArrowFontSize 15
+skinparam ArrowThickness 1.2
+
+skinparam nodesep 60
+skinparam ranksep 60
+
+title Diagrama de clases — Procesamiento del Network Server
+
+left to right direction
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype polyline
+
+skinparam nodesep 40
+skinparam ranksep 50
+
+hide circle
+
+
+/' =====================================================
+   NETWORK
+   ===================================================== '/
+
+package "network" as PKG_NETWORK {
+
+    class "NetworkServer" as NS_Server {
+
+        - adrEnabled : boolean
+        - linkBudgetParameters : Cost231LinkBudgetParameters
+
+        --
+
+        + registerDevice(device : Device) : void
+        + registerGateway(gateway : Gateway) : void
+
+        + configureAdr(enabled : boolean) : void
+        + configureRandomPacketLoss(enabled : boolean, probability : double) : void
+        + configureLinkBudgetParameters(parameters : Cost231LinkBudgetParameters) : void
+
+        + receiveFromGateway(gatewayId : String, payload : String, transport : String) : void
+
+        + registerTransmissionMetric(device : Device, gateway : Gateway) : LinkBudgetResult
+
+        --
+
+        - isLinkBudgetDrop(device : Device, result : LinkBudgetResult) : boolean
+    }
+
+
+    class "DeviceRegistry" as NS_DeviceRegistry {
+
+        - devices : Map<String, Device>
+
+        --
+
+        + register(device : Device) : void
+        + get(deviceId : String) : Device
+        + contains(deviceId : String) : boolean
+        + size() : int
+        + getAll() : Map<String, Device>
+    }
+
+
+    class "GatewayRegistry" as NS_GatewayRegistry {
+
+        - gateways : Map<String, Gateway>
+
+        --
+
+        + register(gateway : Gateway) : void
+        + get(gatewayId : String) : Gateway
+        + contains(gatewayId : String) : boolean
+        + size() : int
+    }
+
+
+    class "DeviceSessionRegistry" as NS_SessionRegistry {
+
+        - sessions : Map<String, DeviceSession>
+
+        --
+
+        + getOrCreate(deviceId : String) : DeviceSession
+        + get(deviceId : String) : DeviceSession
+        + contains(deviceId : String) : boolean
+        + size() : int
+        + getAllSessions() : Collection<DeviceSession>
+    }
+
+
+    class "DeviceSession" as NS_Session {
+
+        - deviceId : String
+
+        - fCntUp : int
+        - fCntDown : int
+
+        - packetsTransmitted : int
+        - packetsReceived : int
+        - packetsLost : int
+
+        - originalMessages : int
+        - retransmissionAttempts : int
+
+        - linkBudgetLosses : int
+        - randomLosses : int
+
+        - currentSf : int
+        - recommendedSf : int
+
+        - ackRequired : boolean
+
+        - confirmedMessages : int
+        - ackReceived : int
+
+        --
+
+        + registerTransmissionAttempt(fcnt : int) : boolean
+
+        + registerConfirmedMessage(fcnt : int) : void
+
+        + registerAckGenerated(fcnt : int) : void
+
+        + nextFCntDown() : int
+
+        + incrementPacketsReceived() : void
+
+        + incrementLinkBudgetLosses(count : int) : void
+
+        + incrementRandomLosses(count : int) : void
+
+        + getPdr() : double
+
+        + getDeliveryRate() : double
+
+        + getThroughputKbps() : double
+    }
+
+
+    class "UplinkProcessor" as NS_Uplink {
+
+        - payloadParser : PayloadParser
+
+        --
+
+        + process(payload : String) : UplinkContext
+    }
+
+
+    class "UplinkContext" as NS_Context {
+
+        - fields : Map<String, String>
+
+        - deviceId : String
+
+        - decodedPayload : String
+
+        - description : String
+
+        - confirmed : boolean
+    }
+
+
+    class "PayloadParser" as NS_Parser <<resumen>>
+
+
+    class "DuplicateFrameDetector" as NS_Duplicate {
+
+        + isDuplicate(session : DeviceSession, fCntHex : String) : boolean
+    }
+
+
+    class "PacketLossSimulator" as NS_Loss {
+
+        - enabled : boolean
+
+        - lossProbability : double
+
+        --
+
+        + shouldDrop() : boolean
+
+        + setEnabled(enabled : boolean) : void
+
+        + setLossProbability(lossProbability : double) : void
+    }
+
+
+    class "AdrManager" as NS_ADR {
+
+        {static} + MIN_SF : int = 7
+
+        {static} + MAX_SF : int = 12
+
+        {static} + LOW_MARGIN_THRESHOLD_DB : double = 3.0
+
+        {static} + HIGH_MARGIN_THRESHOLD_DB : double = 6.0
+
+        --
+
+        + recommendSpreadingFactor(linkMarginDb : double, currentSf : int) : int
+    }
+
+
+    class "DownlinkProcessor" as NS_Downlink <<resumen>> {
+
+        + process(device : Device, session : DeviceSession, gateway : Gateway, context : UplinkContext, transport : String) : void
+    }
+}
+
+
+/' =====================================================
+   PERFORMANCE
+   ===================================================== '/
+
+package "performance" as PKG_PERFORMANCE {
+
+    class "LinkBudgetService" as PERF_LinkBudget <<resumen>> {
+
+        + evaluate(...) : LinkBudgetResult
+    }
+
+
+    class "Cost231LinkBudgetParameters" as PERF_Parameters <<resumen>>
+
+
+    class "LinkBudgetResult" as PERF_Result {
+
+        - deviceId : String
+
+        - gatewayId : String
+
+        - distanceMeters : double
+
+        - pathLossDb : double
+
+        - txPowerDbm : double
+
+        - rxPowerDbm : double
+
+        - sensitivityDbm : double
+
+        - marginDb : double
+
+        - los : boolean
+    }
+
+
+    class "PerformanceMetricsStore" as PERF_Store {
+
+        - metrics : List<PerformanceMetric>
+
+        --
+
+        + add(metric : PerformanceMetric) : void
+
+        + getAll() : List<PerformanceMetric>
+
+        + size() : int
+
+        + clear() : void
+    }
+
+
+    class "PerformanceMetric" as PERF_Metric {
+
+        - timestampMillis : long
+
+        - linkBudgetResult : LinkBudgetResult
+    }
+}
+
+
+/' =====================================================
+   ENTIDADES UTILIZADAS
+   ===================================================== '/
+
+package "entidades" as PKG_ENTITIES {
+
+    class "Device" as EXT_Device <<resumen>>
+
+    class "Gateway" as EXT_Gateway <<resumen>>
+}
+
+
+/' =====================================================
+   POLÍTICA DOWNLINK
+   ===================================================== '/
+
+package "network.policy" as PKG_POLICY {
+
+    interface "DownlinkPolicy" as EXT_DownlinkPolicy <<detalle Diagrama 05>>
+}
+
+
+/' =====================================================
+   COMPOSICIÓN DEL NETWORK SERVER
+   ===================================================== '/
+
+NS_Server *-- NS_DeviceRegistry
+
+NS_Server *-- NS_GatewayRegistry
+
+NS_Server *-- NS_SessionRegistry
+
+NS_Server *-- NS_Uplink
+
+NS_Server *-- NS_Downlink
+
+NS_Server *-- NS_ADR
+
+NS_Server *-- NS_Duplicate
+
+NS_Server *-- NS_Loss
+
+
+/' =====================================================
+   SERVICIOS DEL NETWORK SERVER
+   ===================================================== '/
+
+NS_Server o-- PERF_LinkBudget
+
+NS_Server o-- PERF_Store
+
+NS_Server --> PERF_Parameters
+
+
+/' =====================================================
+   REGISTROS
+   ===================================================== '/
+
+NS_DeviceRegistry "1" o-- "0..*" EXT_Device : devices
+
+NS_GatewayRegistry "1" o-- "0..*" EXT_Gateway : gateways
+
+NS_SessionRegistry "1" *-- "0..*" NS_Session : sessions
+
+
+/' =====================================================
+   PROCESAMIENTO DEL UPLINK
+   ===================================================== '/
+
+NS_Uplink *-- NS_Parser
+
+NS_Uplink ..> NS_Context : crea
+
+
+/' =====================================================
+   CONTROL DE SESIÓN Y PÉRDIDAS
+   ===================================================== '/
+
+NS_Duplicate ..> NS_Session : consulta FCnt
+
+NS_Downlink ..> NS_Session : usa estado
+
+
+/' =====================================================
+   LINK BUDGET
+   ===================================================== '/
+
+PERF_LinkBudget ..> PERF_Result : genera
+
+PERF_LinkBudget ..> PERF_Parameters : usa
+
+
+/' =====================================================
+   MÉTRICAS
+   ===================================================== '/
+
+PERF_Store "1" o-- "0..*" PERF_Metric : metrics
+
+PERF_Metric --> PERF_Result : linkBudgetResult
+
+
+/' =====================================================
+   DOWNLINK
+   ===================================================== '/
+
+NS_Downlink ..> EXT_Device : usa
+
+NS_Downlink ..> EXT_Gateway : envía
+
+NS_Downlink ..> NS_Context : consulta
+
+NS_Downlink ..> EXT_DownlinkPolicy : selecciona
+
+
+/' =====================================================
+   LEYENDA
+   ===================================================== '/
+
+legend bottom
+
+  |= Símbolo |= Significado |
+
+  | --> | Asociación / referencia estructural |
+
+  | ..> | Dependencia de uso |
+
+  | o-- | Agregación |
+
+  | *-- | Composición |
+
+  | + | Público |
+
+  | - | Privado |
+
+endlegend
+
+
+@enduml

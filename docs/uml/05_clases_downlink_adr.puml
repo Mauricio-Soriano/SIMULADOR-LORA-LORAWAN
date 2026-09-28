@@ -1,0 +1,373 @@
+@startuml
+
+skinparam shadowing false
+skinparam dpi 180
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+
+skinparam classFontSize 18
+skinparam classAttributeFontSize 16
+skinparam classMethodFontSize 16
+skinparam classStereotypeFontSize 14
+
+skinparam packageTitleFontSize 18
+
+skinparam ArrowFontSize 15
+skinparam ArrowThickness 1.2
+
+skinparam nodesep 60
+skinparam ranksep 60
+
+title Diagrama de clases — Procesamiento Downlink y ADR
+
+left to right direction
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype polyline
+skinparam nodesep 45
+skinparam ranksep 55
+
+hide circle
+
+
+/' =====================================================
+   NETWORK
+   ===================================================== '/
+
+package "network" as PKG_NETWORK {
+
+    class "NetworkServer" as NS_Server <<resumen>> {
+
+        - adrManager : AdrManager
+        - downlinkProcessor : DownlinkProcessor
+        - adrEnabled : boolean
+
+        --
+
+        + receiveFromGateway(...) : void
+    }
+
+
+    class "AdrManager" as NS_ADR {
+
+        {static} + MIN_SF : int = 7
+        {static} + MAX_SF : int = 12
+
+        {static} + LOW_MARGIN_THRESHOLD_DB : double = 3.0
+        {static} + HIGH_MARGIN_THRESHOLD_DB : double = 6.0
+
+        --
+
+        + recommendSpreadingFactor(linkMarginDb : double, currentSf : int) : int
+    }
+
+
+    class "DeviceSession" as NS_Session {
+
+        - currentSf : int
+        - recommendedSf : int
+
+        - ackRequired : boolean
+
+        - fCntDown : int
+
+        - confirmedMessages : int
+        - ackGenerated : int
+        - ackReceived : int
+
+        --
+
+        + nextFCntDown() : int
+
+        + isAckRequired() : boolean
+        + setAckRequired(ackRequired : boolean) : void
+
+        + getCurrentSf() : int
+
+        + getRecommendedSf() : int
+        + setRecommendedSf(recommendedSf : int) : void
+
+        + registerAckGenerated(fcnt : int) : void
+    }
+
+
+    class "DownlinkProcessor" as NS_Downlink {
+
+        - classAPolicy : DownlinkPolicy
+
+        - classBPolicy : DownlinkPolicy
+
+        - classCPolicy : DownlinkPolicy
+
+        - ackBuilder : AckDownlinkBuilder
+
+        --
+
+        + process(device : Device, session : DeviceSession, gateway : Gateway, context : UplinkContext, transport : String) : void
+
+        --
+
+        - buildAdrCommand(session : DeviceSession) : String
+
+        - buildDownlinkCommand(ackRequired : boolean, adrCommand : String, decision : DownlinkDecision) : String
+
+        - resolvePolicy(device : Device) : DownlinkPolicy
+    }
+
+
+    class "AckDownlinkBuilder" as NS_AckBuilder {
+
+        + buildAck(device : Device, session : DeviceSession) : DownlinkFrame
+    }
+
+
+    class "UplinkContext" as NS_Context <<resumen>> {
+
+        - fields : Map<String, String>
+
+        - deviceId : String
+
+        - confirmed : boolean
+    }
+}
+
+
+/' =====================================================
+   DOWNLINK POLICIES
+   ===================================================== '/
+
+package "network.policy" as PKG_POLICY {
+
+    interface "DownlinkPolicy" as POLICY_Interface {
+
+        + evaluate(device : Device, fields : Map<String,String>, transport : String) : DownlinkDecision
+    }
+
+
+    class "ClassADownlinkPolicy" as POLICY_A {
+
+        + evaluate(device : Device, fields : Map<String,String>, transport : String) : DownlinkDecision
+    }
+
+
+    class "ClassBDownlinkPolicy" as POLICY_B {
+
+        + evaluate(device : Device, fields : Map<String,String>, transport : String) : DownlinkDecision
+    }
+
+
+    class "ClassCDownlinkPolicy" as POLICY_C {
+
+        + evaluate(device : Device, fields : Map<String,String>, transport : String) : DownlinkDecision
+    }
+
+
+    class "DownlinkDecision" as POLICY_Decision {
+
+        - shouldSend : boolean
+
+        - command : String
+
+        - fPort : String
+
+        - adrCommand : String
+
+        --
+
+        {static} + none() : DownlinkDecision
+
+        {static} + send(command : String, fPort : String) : DownlinkDecision
+
+        {static} + adr(adrCommand : String) : DownlinkDecision
+
+        + shouldSend() : boolean
+
+        + getCommand() : String
+
+        + getFPort() : String
+
+        + getAdrCommand() : String
+    }
+}
+
+
+/' =====================================================
+   FRAME
+   ===================================================== '/
+
+package "frame" as PKG_FRAME {
+
+    class "DownlinkFrame" as FRAME_Downlink {
+
+        - mhdr : String = "60"
+
+        - devAddr : String
+
+        - fCnt : String
+
+        - fPort : String
+
+        - frmPayload : String
+
+        - mic : String = "0000"
+
+        - ack : boolean
+
+        --
+
+        + toPayloadString() : String
+
+        + isAck() : boolean
+    }
+}
+
+
+/' =====================================================
+   ENTIDADES
+   ===================================================== '/
+
+package "entidades" as PKG_ENTITIES {
+
+    class "Device" as EXT_Device <<resumen>> {
+
+        - config : LoRaConfig
+
+        - confirmed : boolean
+
+        - currentSpreadingFactor : int
+
+        --
+
+        + setSpreadingFactor(spreadingFactor : int) : void
+    }
+
+
+    class "Gateway" as EXT_Gateway <<resumen>> {
+
+        + sendDownlink(payload : String, transport : String) : void
+    }
+
+
+    enum "DeviceClass" as EXT_DeviceClass {
+
+        CLASS_A
+
+        CLASS_B
+
+        CLASS_C
+    }
+}
+
+
+/' =====================================================
+   NETWORK SERVER
+   ===================================================== '/
+
+NS_Server *-- NS_ADR
+
+NS_Server *-- NS_Downlink
+
+NS_Server ..> NS_Session : actualiza estado ADR
+
+
+/' =====================================================
+   ADR Y ESTADO DE SESIÓN
+   ===================================================== '/
+
+NS_Downlink ..> NS_Session : consulta ADR / ACK
+
+
+/' =====================================================
+   DOWNLINK PROCESSOR
+   ===================================================== '/
+
+NS_Downlink *-- POLICY_A
+
+NS_Downlink *-- POLICY_B
+
+NS_Downlink *-- POLICY_C
+
+NS_Downlink *-- NS_AckBuilder : declarado
+
+NS_Downlink ..> NS_Context : consulta uplink
+
+NS_Downlink ..> POLICY_Decision : usa decisión
+
+NS_Downlink ..> FRAME_Downlink : crea
+
+NS_Downlink ..> EXT_Device : consulta
+
+NS_Downlink ..> EXT_DeviceClass : selecciona política
+
+NS_Downlink ..> EXT_Gateway : sendDownlink
+
+
+/' =====================================================
+   POLÍTICAS
+   ===================================================== '/
+
+POLICY_A ..|> POLICY_Interface
+
+POLICY_B ..|> POLICY_Interface
+
+POLICY_C ..|> POLICY_Interface
+
+
+POLICY_A ..> POLICY_Decision : retorna
+
+POLICY_B ..> POLICY_Decision : retorna
+
+POLICY_C ..> POLICY_Decision : retorna
+
+
+/' =====================================================
+   ACK BUILDER
+   ===================================================== '/
+
+NS_AckBuilder ..> NS_Session : incrementa FCntDown
+
+NS_AckBuilder ..> EXT_Device : obtiene DevAddr
+
+NS_AckBuilder ..> FRAME_Downlink : crea
+
+
+/' =====================================================
+   NOTA IMPLEMENTACIÓN ACTUAL
+   ===================================================== '/
+
+note right of NS_AckBuilder
+
+  Componente declarado en DownlinkProcessor.
+  El flujo actual construye DownlinkFrame
+  directamente dentro de process().
+
+end note
+
+
+/' =====================================================
+   LEYENDA
+   ===================================================== '/
+
+legend bottom
+
+  |= Símbolo |= Significado |
+
+  | --> | Asociación / referencia estructural |
+
+  | ..> | Dependencia de uso |
+
+  | *-- | Composición |
+
+  | Realización | Implementación de interfaz |
+
+  | + | Público |
+
+  | - | Privado |
+
+endlegend
+
+
+@enduml

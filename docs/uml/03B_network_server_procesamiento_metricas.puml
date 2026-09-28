@@ -1,0 +1,92 @@
+@startuml
+
+title Network Server - Procesamiento y evaluación del uplink
+
+left to right direction
+
+skinparam shadowing false
+
+skinparam defaultFontSize 18
+skinparam titleFontSize 22
+skinparam classFontSize 18
+skinparam classAttributeFontSize 15
+skinparam classMethodFontSize 15
+skinparam ArrowFontSize 14
+
+skinparam packageTitleFontSize 16
+skinparam packageStyle rectangle
+skinparam Padding 8
+
+skinparam nodesep 20
+skinparam ranksep 20
+
+
+class NetworkServer {
+    + receiveFromGateway(...)
+    + registerTransmissionMetric(...) : LinkBudgetResult
+}
+
+
+package "Procesamiento de uplink" as PKG_UPLINK {
+
+    class UplinkProcessor {
+        + process(payload : String) : UplinkContext
+    }
+
+    class UplinkContext {
+        + getDeviceId() : String
+        + getFields() : Map
+        + isConfirmed() : boolean
+    }
+}
+
+
+package "Evaluación de transmisión" as PKG_EVAL {
+
+    class LinkBudgetService {
+        + evaluate(...) : LinkBudgetResult
+    }
+
+    class LinkBudgetResult {
+        + getPathLossDb() : double
+        + getRxPowerDbm() : double
+        + getMarginDb() : double
+    }
+
+    class PacketLossSimulator {
+        + shouldDrop() : boolean
+        + getLossProbability() : double
+    }
+
+    class DuplicateFrameDetector {
+        + isDuplicate(...) : boolean
+    }
+}
+
+
+class DeviceSession <<estado de sesión>>
+
+
+NetworkServer *-- UplinkProcessor
+NetworkServer *-- LinkBudgetService
+NetworkServer *-- PacketLossSimulator
+NetworkServer *-- DuplicateFrameDetector
+
+UplinkProcessor --> UplinkContext : genera
+
+LinkBudgetService --> LinkBudgetResult : genera
+
+DuplicateFrameDetector --> DeviceSession : consulta
+
+
+UplinkProcessor -[hidden]right- LinkBudgetService
+LinkBudgetService -[hidden]right- PacketLossSimulator
+PacketLossSimulator -[hidden]right- DuplicateFrameDetector
+
+
+note bottom of NetworkServer
+Coordina la recepción y evaluación
+de cada transmisión uplink.
+end note
+
+@enduml

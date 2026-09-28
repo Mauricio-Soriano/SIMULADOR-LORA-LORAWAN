@@ -1,0 +1,104 @@
+@startuml
+
+title Secuencia uplink - Recepción y evaluación del enlace
+
+hide footbox
+autonumber
+
+skinparam shadowing false
+skinparam defaultFontSize 17
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 16
+skinparam sequenceMessageFontSize 14
+skinparam noteFontSize 13
+skinparam ArrowFontSize 13
+
+skinparam ParticipantPadding 10
+skinparam BoxPadding 5
+skinparam maxMessageSize 75
+
+
+participant Device as DEV
+participant "Transporte\nUDP / TCP" as Transport
+participant Gateway as GW
+participant "Network\nServer" as NS
+participant "Uplink\nProcessor" as UP
+participant "Session\nRegistry" as Registry
+participant "Device\nSession" as Session
+participant "Link Budget\nService" as Link
+participant "Packet Loss\nSimulator" as Loss
+participant "Duplicate\nDetector" as Duplicate
+
+
+group Generación y recepción
+
+    DEV -> DEV : construir y serializar\nUplinkFrame
+
+    DEV -> Transport : enviar uplink
+
+    Transport -> GW : entregar payload
+
+    GW -> NS : receiveFromGateway(...)
+
+end
+
+
+group Procesamiento inicial
+
+    NS -> UP : process(payload)
+    UP --> NS : UplinkContext
+
+    NS -> Registry : getOrCreate(deviceId)
+    Registry --> NS : DeviceSession
+
+    NS -> Session : registrar intento\ny estado inicial
+
+end
+
+
+group Evaluación de la transmisión
+
+    NS -> Link : evaluate(...)
+    Link --> NS : RxPower y margen
+
+    alt RxPower < sensibilidad
+
+        NS -> Session : registrar pérdida\nde enlace
+
+    else Enlace viable
+
+        NS -> Loss : shouldDrop()
+        Loss --> NS : resultado
+
+        alt Pérdida aleatoria
+
+            NS -> Session : registrar pérdida\naleatoria
+
+        else Sin pérdida aleatoria
+
+            NS -> Duplicate : isDuplicate(...)
+            Duplicate --> NS : resultado
+
+            alt Trama duplicada
+
+                NS -> NS : descartar uplink
+
+            else Trama aceptada
+
+                NS -> Session : registrar recepción,\nlatencia, RSSI y margen
+
+                note over NS, Session
+                Continúa en el Diagrama 07B:
+                ADR, confirmación y downlink.
+                end note
+
+            end
+
+        end
+
+    end
+
+end
+
+@enduml

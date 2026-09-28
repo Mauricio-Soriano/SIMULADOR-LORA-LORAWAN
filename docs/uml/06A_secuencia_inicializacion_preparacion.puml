@@ -1,0 +1,131 @@
+@startuml
+
+title Secuencia de simulación - Inicialización y preparación
+
+hide footbox
+autonumber
+
+skinparam shadowing false
+skinparam defaultFontSize 17
+skinparam titleFontSize 22
+
+skinparam sequenceParticipantFontSize 17
+skinparam sequenceMessageFontSize 15
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+
+skinparam ParticipantPadding 18
+skinparam BoxPadding 8
+skinparam maxMessageSize 100
+
+actor Usuario
+
+boundary "simulator-dashboard.js\nFrontend" as UI
+
+participant "API HTTP\n/api/simulations/run" as API
+participant SimulationRunner as Runner
+participant NetworkServer as NS
+participant Gateway as GW
+participant UdpGatewayServer as UDP
+participant TcpGatewayServer as TCP
+participant "Device\n[1..n]" as DEV
+participant FuenteInformacion as Fuente
+
+
+Usuario -> UI : Ejecutar simulación
+
+
+
+UI -> UI : preparar solicitud de simulación
+
+UI -> API : POST /api/simulations/run\nJSON de configuración
+
+
+
+API -> Runner : run(SimulationRequest)
+
+activate Runner
+
+Runner -> Runner : validateRequest(request)
+
+
+group Inicialización del servidor
+
+    create NS
+    Runner -> NS : crear NetworkServer()
+
+    Runner -> NS : configureAdr(...)
+    Runner -> NS : configureRandomPacketLoss(...)
+
+end
+
+
+group Creación del Gateway
+
+    create GW
+    Runner -> GW : crear Gateway(...)
+
+    Runner -> NS : registerGateway(gateway)
+
+end
+
+
+group Inicialización del transporte
+
+    create UDP
+    Runner -> UDP : crear UdpGatewayServer(...)
+
+    create TCP
+    Runner -> TCP : crear TcpGatewayServer(...)
+
+    par Servidor UDP
+        Runner -> UDP : iniciar hilo / run()
+    else Servidor TCP
+        Runner -> TCP : iniciar hilo / run()
+    end
+
+end
+
+
+group Creación de dispositivos
+
+    loop por cada DeviceRequest habilitado
+
+        create DEV
+        Runner -> DEV : crear Device(...)
+
+        alt Clase B o Clase C
+            Runner -> DEV : setConfirmed(true)
+        else Clase A
+            Runner -> DEV : setConfirmed(false)
+        end
+
+        Runner -> NS : registerDevice(device)
+
+    end
+
+end
+
+
+group Preparación de la fuente
+
+    create Fuente
+    Runner -> Fuente : crear FuenteInformacion(inputFile)
+
+    Runner -> Fuente : cargarInformacion()
+
+    Fuente --> Runner : getLineas()
+
+end
+
+
+note over Runner, Fuente
+La infraestructura queda inicializada
+y los datos quedan disponibles para
+comenzar el procesamiento de filas.
+end note
+
+
+deactivate Runner
+
+@enduml

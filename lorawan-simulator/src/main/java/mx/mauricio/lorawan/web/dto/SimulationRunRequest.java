@@ -55,6 +55,7 @@ public class SimulationRunRequest {
         public int fPort;
         public List<Integer> columnIndexes;
         public Position position;
+        public Double eirpDbm;
     }
 
     public static class Position {

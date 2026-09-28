@@ -18,8 +18,6 @@ import mx.mauricio.lorawan.simulator.dto.SimulationResult;
 import mx.mauricio.lorawan.source.FuenteInformacion;
 import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
 
-import mx.mauricio.lorawan.performance.Cost231LinkBudgetParameters;
-
 public class SimulationRunner {
 
     public SimulationResult run(SimulationRequest request) {
@@ -61,36 +59,34 @@ public class SimulationRunner {
         networkServer.configureRandomPacketLoss(
                 randomLossEnabled,
                 randomLossProbability);
+
         Cost231LinkBudgetParameters linkBudgetParameters =
-            request.getLinkBudgetParameters() != null
-                    ? request.getLinkBudgetParameters()
-                    : new Cost231LinkBudgetParameters();
+                request.getLinkBudgetParameters() != null
+                        ? request.getLinkBudgetParameters()
+                        : new Cost231LinkBudgetParameters();
+
+        linkBudgetParameters.validate();
 
         System.out.println(
-                "[DEBUG REQUEST] linkBudgetParameters null? "
-                + (request.getLinkBudgetParameters() == null));
-
-        System.out.println(
-                "[DEBUG REQUEST] los="
-                + linkBudgetParameters.isLos()
+                "[LinkBudgetRequest] COST231"
                 + " frequencyMHz="
                 + linkBudgetParameters.getFrequencyMHz()
-                + " hb="
-                + linkBudgetParameters.getHbMeters()
-                + " hr="
-                + linkBudgetParameters.getHrMeters()
-                + " streetWidth="
+                + " los="
+                + linkBudgetParameters.isLos()
+                + " streetWidthMeters="
                 + linkBudgetParameters.getStreetWidthMeters()
-                + " buildingSeparation="
+                + " baseStationHeightMeters="
+                + linkBudgetParameters.getBaseStationHeightMeters()
+                + " averageBuildingHeightMeters="
+                + linkBudgetParameters.getAverageBuildingHeightMeters()
+                + " mobileStationHeightMeters="
+                + linkBudgetParameters.getMobileStationHeightMeters()
+                + " streetOrientationDegrees="
+                + linkBudgetParameters.getStreetOrientationDegrees()
+                + " buildingSeparationMeters="
                 + linkBudgetParameters.getBuildingSeparationMeters()
-                + " ka="
-                + linkBudgetParameters.getKaDb()
-                + " kd="
-                + linkBudgetParameters.getKdDb()
-                + " kf="
-                + linkBudgetParameters.getKfDb()
-                + " lbsh="
-                + linkBudgetParameters.getLbshDb());
+                + " urbanEnvironment="
+                + linkBudgetParameters.getUrbanEnvironment());
 
         networkServer.configureLinkBudgetParameters(
                 linkBudgetParameters);
@@ -136,11 +132,42 @@ public class SimulationRunner {
                 );
             }
 
+            double eirpDbm =
+                    deviceRequest.getEirpDbm() != null
+                            ? deviceRequest.getEirpDbm()
+                            : config.getDefaultEirpDbm();
+
+            if (!Double.isFinite(deviceRequest.getX())
+                    || !Double.isFinite(deviceRequest.getY())
+                    || !Double.isFinite(eirpDbm)) {
+
+                throw new IllegalArgumentException(
+                        "El dispositivo "
+                        + deviceRequest.getDeviceId()
+                        + " tiene posición o EIRP inválida.");
+            }
+
             Device device = new Device(
-                deviceRequest.getDeviceId(),
-                gateway,
-                config                
-            );
+                    deviceRequest.getDeviceId(),
+                    gateway,
+                    config,
+                    deviceRequest.getX(),
+                    deviceRequest.getY(),
+                    eirpDbm);
+
+            System.out.println(
+                    "[DeviceConfig] id="
+                    + deviceRequest.getDeviceId()
+                    + " x="
+                    + deviceRequest.getX()
+                    + " y="
+                    + deviceRequest.getY()
+                    + " eirpDbm="
+                    + eirpDbm
+                    + " eirpSource="
+                    + (deviceRequest.getEirpDbm() != null
+                            ? "USER"
+                            : "REGIONAL_DEFAULT"));
 
             switch (config.getDeviceClass()) {
 
@@ -280,10 +307,16 @@ result.setScenarioName(
                         .getAllSessions());
 
         result.setMetrics(
-                reporter.buildMetrics(
-                        networkServer
-                                .getSessionRegistry()
-                                .getAllSessions()));
+            reporter.buildMetrics(
+                networkServer
+                    .getSessionRegistry()
+                    .getAllSessions(),
+
+                networkServer
+                    .getPerformanceMetricsStore()
+                    .getAll()
+            )
+        );
 
         System.out.println(
                 "Simulation complete.");
