@@ -781,7 +781,9 @@ function buildSimulationPayload() {
 
       simulation: {
         rowsToProcess: Number(state.topology.rowsToProcess),
-        sendIntervalMs: Number(state.topology.sendIntervalMs)
+        sendIntervalMs: Number(state.topology.sendIntervalMs),
+        delimiter: getEffectiveDelimiter(),
+        hasHeader: state.file.hasHeader
       },
 
       adrEnabled: Boolean(state.experiment.adrEnabled),
@@ -1011,6 +1013,12 @@ function validateDevicesStep() {
   return errors;
 }
 
+function getEffectiveDelimiter() {
+  return state.file.delimiter === "\\t"
+    ? "\t"
+    : (state.file.delimiter || ",");
+}
+
 function analyzeLocalFile() {
   if (!state.file.rawFile) {
     state.errors = { inputFile: "Selecciona un archivo local para analizar." };
@@ -1021,7 +1029,7 @@ function analyzeLocalFile() {
   const reader = new FileReader();
   reader.onload = e => {
     const text = String(e.target.result || "");
-    const delimiter = state.file.delimiter || ",";
+    const delimiter = getEffectiveDelimiter();
     const lines = text.split(/\r?\n/).filter(Boolean);
     const rows = lines.slice(0, 6).map(line => line.split(delimiter));
     const maxCols = rows.reduce((max, row) => Math.max(max, row.length), 0);
@@ -1032,7 +1040,10 @@ function analyzeLocalFile() {
     }));
 
     state.file.previewRows = state.file.hasHeader ? rows.slice(1) : rows;
-    state.file.rowCountEstimate = lines.length;
+    state.file.rowCountEstimate =
+      state.file.hasHeader
+        ? Math.max(0, lines.length - 1)
+        : lines.length;
     state.errors = {};
     state.ui.uploadMessage = `Vista previa cargada (${lines.length} filas estimadas).`;
     render();
@@ -1086,7 +1097,23 @@ function renderFileStep() {
       <div class="field-row">
         <div class="field">
           <label for="delimiter">Separador</label>
-          <input id="delimiter" type="text" maxlength="1" value="${escapeHtml(state.file.delimiter)}" />
+          <select id="delimiter">
+            <option value="," ${state.file.delimiter === "," ? "selected" : ""}>
+              Coma (,)
+            </option>
+
+            <option value=";" ${state.file.delimiter === ";" ? "selected" : ""}>
+              Punto y coma (;)
+            </option>
+
+            <option value="|" ${state.file.delimiter === "|" ? "selected" : ""}>
+              Barra vertical (|)
+            </option>
+
+            <option value="\\t" ${state.file.delimiter === "\\t" ? "selected" : ""}>
+              Tabulador
+            </option>
+          </select>
         </div>
 
         <div class="field">
@@ -2765,7 +2792,7 @@ function bindStepOneEvents() {
 
   document.getElementById("fileInput")?.addEventListener("change", onFileSelected);
 
-  document.getElementById("delimiter")?.addEventListener("input", e => {
+  document.getElementById("delimiter")?.addEventListener("change", e => {
     state.file.delimiter = e.target.value || ",";
   });
 

@@ -9,6 +9,8 @@ public class SimulationRequest {
     private String inputFile;
     private int rowsToProcess;
     private int sendIntervalMs;
+    private String delimiter;
+    private boolean hasHeader;
     private GatewayRequest gateway;
     private List<DeviceRequest> devices;
     private Boolean adrEnabled = true;
@@ -24,8 +26,32 @@ public class SimulationRequest {
         this.inputFile = "data/t5.csv";
         this.rowsToProcess = 100;
         this.sendIntervalMs = 150;
+
+        this.delimiter = ",";
+        this.hasHeader = true;
+
         this.gateway = new GatewayRequest();
         this.devices = new ArrayList<>();
+    }
+
+    public String getDelimiter() {
+        return delimiter;
+    }
+
+    public void setDelimiter(String delimiter) {
+        if (delimiter == null || delimiter.isEmpty()) {
+            this.delimiter = ",";
+        } else {
+            this.delimiter = delimiter;
+        }
+    }
+
+    public boolean hasHeader() {
+        return hasHeader;
+    }
+
+    public void setHasHeader(boolean hasHeader) {
+        this.hasHeader = hasHeader;
     }
 
     public Boolean getAdrEnabled() {

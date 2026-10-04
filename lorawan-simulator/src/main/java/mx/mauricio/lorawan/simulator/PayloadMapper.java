@@ -2,17 +2,29 @@ package mx.mauricio.lorawan.simulator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import mx.mauricio.lorawan.simulator.dto.DeviceRequest;
 
 public class PayloadMapper {
 
-    public String buildPayload(String csvLine, DeviceRequest request) {
+    public String buildPayload(
+        String csvLine,
+        DeviceRequest request,
+        String delimiter) {
         if (csvLine == null || csvLine.isBlank()) {
             return "";
         }
 
-        String[] cols = csvLine.split(",", -1);
+        String effectiveDelimiter =
+                (delimiter == null || delimiter.isEmpty())
+                        ? ","
+                        : delimiter;
+
+        String[] cols =
+                csvLine.split(
+                        Pattern.quote(effectiveDelimiter),
+                        -1);
         List<String> values = new ArrayList<>();
 
         if (request.getColumnIndexes() == null || request.getColumnIndexes().isEmpty()) {

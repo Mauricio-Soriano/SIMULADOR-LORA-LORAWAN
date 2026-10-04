@@ -28,6 +28,9 @@ public class SimulationRunRequest {
     public static class SimulationConfig {
         public int rowsToProcess;
         public int sendIntervalMs;
+
+        public String delimiter;
+        public Boolean hasHeader;
     }
 
     public static class GatewayConfig {

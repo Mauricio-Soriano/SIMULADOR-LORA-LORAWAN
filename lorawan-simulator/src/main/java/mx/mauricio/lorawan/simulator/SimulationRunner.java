@@ -208,7 +208,9 @@ result.setScenarioName(
                 fuente.getLineas();
 
         int startIndex =
-                detectStartIndex(lineas);
+            detectStartIndex(
+                    lineas,
+                    request.hasHeader());
 
         int availableRows =
                 Math.max(
@@ -248,7 +250,8 @@ result.setScenarioName(
                 String payload =
                         payloadMapper.buildPayload(
                                 linea,
-                                deviceRequest);
+                                deviceRequest,
+                                request.getDelimiter());
 
                 device.sendUplink(
                         new ApplicationPayload(
@@ -352,18 +355,15 @@ result.setScenarioName(
         return null;
     }
 
-    private int detectStartIndex(List<String> lineas) {
+    private int detectStartIndex(
+            List<String> lineas,
+            boolean hasHeader) {
+
         if (lineas == null || lineas.isEmpty()) {
             return 0;
         }
 
-        String firstLine = lineas.get(0);
-        if (firstLine != null && firstLine.toLowerCase().contains("lat")
-            && firstLine.toLowerCase().contains("temp")) {
-            return 1;
-        }
-
-        return 0;
+        return hasHeader ? 1 : 0;
     }
 
     private void sleepSilently(int millis) {

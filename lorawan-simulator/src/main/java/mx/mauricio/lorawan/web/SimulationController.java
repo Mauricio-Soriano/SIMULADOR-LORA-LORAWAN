@@ -163,6 +163,17 @@ public class SimulationController {
 
         simulatorRequest.setSendIntervalMs(
                 webRequest.simulation.sendIntervalMs);
+
+        simulatorRequest.setDelimiter(
+                webRequest.simulation.delimiter != null
+                        && !webRequest.simulation.delimiter.isEmpty()
+                        ? webRequest.simulation.delimiter
+                        : ",");
+
+        simulatorRequest.setHasHeader(
+                webRequest.simulation.hasHeader != null
+                        ? webRequest.simulation.hasHeader
+                        : true);
         
         simulatorRequest.setAdrEnabled(
                 webRequest.adrEnabled != null
